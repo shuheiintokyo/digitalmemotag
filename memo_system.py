@@ -312,11 +312,12 @@ def show_admin_panel(db):
             
             if st.button("Add Item"):
                 if new_id and new_name and new_location:
-                    if db.add_item(new_id, new_name, new_location, new_status):
+                    success, error_msg = db.add_item(new_id, new_name, new_location, new_status)
+                    if success:
                         st.success(f"Item '{new_name}' added!")
                         st.rerun()
                     else:
-                        st.error("Failed to add item (may already exist)")
+                        st.error(f"Failed to add item: {error_msg}")
                 else:
                     st.error("Please fill in all fields")
         
