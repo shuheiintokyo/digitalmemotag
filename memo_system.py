@@ -144,19 +144,44 @@ class Database:
             return False, str(e)
     
     def add_message(self, item_id, message, user, msg_type="general"):
-        """Add new message to database - FIXED VERSION"""
+        """Add new message to database - SCHEMA FLEXIBLE VERSION"""
         try:
             # Ensure user is not None or empty
             user = user.strip() if user and user.strip() else "Anonymous"
             
-            # Create the message data with proper timezone
-            data = {
-                "item_id": item_id,
-                "message": message.strip(),
-                "user": user,
-                "msg_type": msg_type,
-                "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
-            }
+            # First, let's detect the table schema by checking existing messages
+            existing_messages = self.get_messages()
+            
+            # Check if we're using JSONB structure or flat structure
+            if existing_messages and 'payload' in existing_messages[0]:
+                # JSONB structure (like "Message Table Inspection")
+                payload = {
+                    "message": message.strip(),
+                    "user": user,
+                    "item_id": item_id
+                }
+                
+                data = {
+                    "topic": msg_type,
+                    "payload": payload,
+                    "event": "message_posted",
+                    "extension": "memo_system",
+                    "private": False,
+                    "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+                }
+            else:
+                # Try different possible column names for user
+                # Common variations: user, username, author, posted_by, user_name
+                data = {
+                    "item_id": item_id,
+                    "message": message.strip(),
+                    "msg_type": msg_type,
+                    "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+                }
+                
+                # Try different user column names
+                possible_user_columns = ['user', 'username', 'author', 'posted_by', 'user_name']
+                data['user'] = user  # Start with 'user'
             
             # Make the request with proper error handling
             response = requests.post(
@@ -181,6 +206,10 @@ class Database:
                 except:
                     error_detail = response.text
                 
+                # If user column error, try alternative approaches
+                if "user" in error_detail.lower() and "column" in error_detail.lower():
+                    return self._try_alternative_user_columns(item_id, message, user, msg_type)
+                
                 return False, f"Failed to post message (Status {response.status_code}): {error_detail}"
                 
         except requests.exceptions.Timeout:
@@ -189,6 +218,57 @@ class Database:
             return False, "Connection error. Please check your internet connection."
         except Exception as e:
             return False, f"Unexpected error: {str(e)}"
+    
+    def _try_alternative_user_columns(self, item_id, message, user, msg_type):
+        """Try alternative column names for user"""
+        alternative_columns = ['username', 'author', 'posted_by', 'user_name']
+        
+        for col_name in alternative_columns:
+            try:
+                data = {
+                    "item_id": item_id,
+                    "message": message.strip(),
+                    "msg_type": msg_type,
+                    col_name: user,
+                    "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+                }
+                
+                response = requests.post(
+                    f"{self.base_url}/rest/v1/{self.messages_table}",
+                    headers=self.headers,
+                    json=data,
+                    timeout=10
+                )
+                
+                if response.status_code == 201:
+                    return True, f"Message posted successfully (using {col_name} column)"
+                    
+            except Exception:
+                continue
+        
+        # If all alternatives fail, try without user column
+        try:
+            data = {
+                "item_id": item_id,
+                "message": f"[{user}]: {message.strip()}",  # Include user in message text
+                "msg_type": msg_type,
+                "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+            }
+            
+            response = requests.post(
+                f"{self.base_url}/rest/v1/{self.messages_table}",
+                headers=self.headers,
+                json=data,
+                timeout=10
+            )
+            
+            if response.status_code == 201:
+                return True, "Message posted (user info included in message text)"
+                
+        except Exception:
+            pass
+            
+        return False, "Could not find compatible user column. Please check your database schema."
     
     def update_item_status(self, item_id, status):
         """Update item status"""
@@ -845,25 +925,25 @@ def show_admin_panel(db):
             st.markdown("### Items Table")
             st.code("""
 CREATE TABLE items (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    item_id VARCHAR(255) UNIQUE NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    location VARCHAR(255),
+    id SERIAL PRIMARY KEY,
+    item_id VARCHAR(50) UNIQUE NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    location VARCHAR(200) NOT NULL,
     status VARCHAR(50) DEFAULT 'Working',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
             """, language="sql")
             
             st.markdown("### Messages Table")
             st.code("""
 CREATE TABLE messages (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    item_id VARCHAR(255) NOT NULL,
+    id SERIAL PRIMARY KEY,
+    item_id VARCHAR(50) NOT NULL,
     message TEXT NOT NULL,
-    user VARCHAR(255) DEFAULT 'Anonymous',
-    msg_type VARCHAR(50) DEFAULT 'general',
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    user_name VARCHAR(100) DEFAULT 'Anonymous',
+    msg_type VARCHAR(20) DEFAULT 'general',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    FOREIGN KEY (item_id) REFERENCES items(item_id) ON DELETE CASCADE
 );
             """, language="sql")
             
@@ -874,15 +954,8 @@ ALTER TABLE items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for public access
-CREATE POLICY "Allow public read on items" ON items FOR SELECT USING (true);
-CREATE POLICY "Allow public insert on items" ON items FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public update on items" ON items FOR UPDATE USING (true);
-CREATE POLICY "Allow public delete on items" ON items FOR DELETE USING (true);
-
-CREATE POLICY "Allow public read on messages" ON messages FOR SELECT USING (true);
-CREATE POLICY "Allow public insert on messages" ON messages FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public update on messages" ON messages FOR UPDATE USING (true);
-CREATE POLICY "Allow public delete on messages" ON messages FOR DELETE USING (true);
+CREATE POLICY "Allow all operations on items" ON items FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all operations on messages" ON messages FOR ALL TO anon USING (true) WITH CHECK (true);
             """, language="sql")
         
         # Connection test
