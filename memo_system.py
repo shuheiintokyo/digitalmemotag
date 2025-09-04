@@ -18,6 +18,37 @@ except ImportError:
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
 
+# Japanese translations
+STATUS_TRANSLATIONS = {
+    "Working": "稼働中",
+    "Needs Maintenance": "メンテナンス要",
+    "Out of Order": "故障中"
+}
+
+MESSAGE_TYPE_TRANSLATIONS = {
+    "general": "一般",
+    "issue": "問題", 
+    "fixed": "修理済み",
+    "question": "質問",
+    "status_update": "ステータス更新"
+}
+
+MESSAGE_TYPE_EMOJIS = {
+    'general': '💬',
+    'issue': '⚠️',
+    'fixed': '✅', 
+    'question': '❓',
+    'status_update': '🔄'
+}
+
+MESSAGE_TYPE_COLORS = {
+    'issue': '#fff3cd',
+    'question': '#d1edff',
+    'fixed': '#d4edda',
+    'status_update': '#e2e3e5',
+    'general': '#f8f9fa'
+}
+
 class Database:
     def __init__(self):
         self.base_url = SUPABASE_URL
@@ -31,7 +62,7 @@ class Database:
         self.items_table = "items"
     
     def test_connection(self):
-        """Test database connection"""
+        """データベース接続をテスト"""
         try:
             response = requests.get(
                 f"{self.base_url}/rest/v1/{self.messages_table}?limit=1",
@@ -40,11 +71,11 @@ class Database:
             )
             return response.status_code in [200, 201]
         except Exception as e:
-            st.error(f"Connection test failed: {e}")
+            st.error(f"接続テストが失敗しました: {e}")
             return False
     
     def get_items(self):
-        """Get all items from database"""
+        """データベースからすべてのアイテムを取得"""
         try:
             response = requests.get(
                 f"{self.base_url}/rest/v1/{self.items_table}?select=*&order=created_at.desc",
@@ -56,14 +87,14 @@ class Database:
             elif response.status_code == 404:
                 return []
             else:
-                st.error(f"Error fetching items: {response.status_code} - {response.text}")
+                st.error(f"アイテム取得エラー: {response.status_code} - {response.text}")
                 return []
         except Exception as e:
-            st.error(f"Exception getting items: {e}")
+            st.error(f"アイテム取得で例外発生: {e}")
             return []
     
     def get_messages(self, item_id=None):
-        """Get messages, optionally filtered by item_id"""
+        """メッセージを取得、オプションでitem_idでフィルタ"""
         try:
             url = f"{self.base_url}/rest/v1/{self.messages_table}?select=*&order=created_at.desc"
             if item_id:
@@ -100,20 +131,20 @@ class Database:
             elif response.status_code == 404:
                 return []
             else:
-                st.error(f"Error fetching messages: {response.status_code}")
+                st.error(f"メッセージ取得エラー: {response.status_code}")
                 return []
         except Exception as e:
-            st.error(f"Exception getting messages: {e}")
+            st.error(f"メッセージ取得で例外発生: {e}")
             return []
     
     def add_item(self, item_id, name, location, status="Working"):
-        """Add new item to database"""
+        """新しいアイテムをデータベースに追加"""
         try:
             # Check if item already exists
             existing_items = self.get_items()
             for item in existing_items:
                 if item.get('item_id') == item_id:
-                    return False, "Item ID already exists"
+                    return False, "アイテムIDが既に存在します"
             
             data = {
                 "item_id": item_id,
@@ -131,7 +162,7 @@ class Database:
             )
             
             if response.status_code == 201:
-                return True, "Success"
+                return True, "成功"
             else:
                 error_detail = ""
                 try:
@@ -139,15 +170,15 @@ class Database:
                     error_detail = error_data.get('message', response.text)
                 except:
                     error_detail = response.text
-                return False, f"Status {response.status_code}: {error_detail}"
+                return False, f"ステータス {response.status_code}: {error_detail}"
         except Exception as e:
             return False, str(e)
     
     def add_message(self, item_id, message, user, msg_type="general"):
-        """Add new message to database - SCHEMA FLEXIBLE VERSION"""
+        """新しいメッセージをデータベースに追加 - スキーマ柔軟版"""
         try:
             # Ensure user is not None or empty
-            user = user.strip() if user and user.strip() else "Anonymous"
+            user = user.strip() if user and user.strip() else "匿名"
             
             # First, let's detect the table schema by checking existing messages
             existing_messages = self.get_messages()
@@ -192,7 +223,7 @@ class Database:
             )
             
             if response.status_code == 201:
-                return True, "Message posted successfully"
+                return True, "メッセージが正常に投稿されました"
             else:
                 error_detail = ""
                 try:
@@ -210,17 +241,17 @@ class Database:
                 if "user" in error_detail.lower() and "column" in error_detail.lower():
                     return self._try_alternative_user_columns(item_id, message, user, msg_type)
                 
-                return False, f"Failed to post message (Status {response.status_code}): {error_detail}"
+                return False, f"メッセージ投稿に失敗しました (ステータス {response.status_code}): {error_detail}"
                 
         except requests.exceptions.Timeout:
-            return False, "Request timed out. Please check your internet connection."
+            return False, "リクエストがタイムアウトしました。インターネット接続を確認してください。"
         except requests.exceptions.ConnectionError:
-            return False, "Connection error. Please check your internet connection."
+            return False, "接続エラー。インターネット接続を確認してください。"
         except Exception as e:
-            return False, f"Unexpected error: {str(e)}"
+            return False, f"予期しないエラー: {str(e)}"
     
     def _try_alternative_user_columns(self, item_id, message, user, msg_type):
-        """Try alternative column names for user"""
+        """ユーザーの代替列名を試行"""
         alternative_columns = ['username', 'author', 'posted_by', 'user_name']
         
         for col_name in alternative_columns:
@@ -241,7 +272,7 @@ class Database:
                 )
                 
                 if response.status_code == 201:
-                    return True, f"Message posted successfully (using {col_name} column)"
+                    return True, f"メッセージが正常に投稿されました ({col_name} 列を使用)"
                     
             except Exception:
                 continue
@@ -263,15 +294,15 @@ class Database:
             )
             
             if response.status_code == 201:
-                return True, "Message posted (user info included in message text)"
+                return True, "メッセージが投稿されました（ユーザー情報はメッセージテキストに含まれます）"
                 
         except Exception:
             pass
             
-        return False, "Could not find compatible user column. Please check your database schema."
+        return False, "互換性のあるユーザー列が見つかりませんでした。データベーススキーマを確認してください。"
     
     def update_item_status(self, item_id, status):
-        """Update item status"""
+        """アイテムステータスを更新"""
         try:
             data = {
                 "status": status,
@@ -287,11 +318,11 @@ class Database:
             
             return response.status_code in [200, 204]
         except Exception as e:
-            st.error(f"Exception updating status: {e}")
+            st.error(f"ステータス更新で例外発生: {e}")
             return False
     
     def delete_item(self, item_id):
-        """Delete item and all its messages"""
+        """アイテムとそのすべてのメッセージを削除"""
         try:
             # First delete all messages for this item
             requests.delete(
@@ -309,13 +340,13 @@ class Database:
             
             return response.status_code in [200, 204]
         except Exception as e:
-            st.error(f"Exception deleting item: {e}")
+            st.error(f"アイテム削除で例外発生: {e}")
             return False
 
 def main():
-    """Main application function"""
+    """メインアプリケーション関数"""
     st.set_page_config(
-        page_title="Digital Memo Tag System",
+        page_title="デジタルメモタグシステム",
         page_icon="🏷️",
         layout="wide",
         initial_sidebar_state="expanded"
@@ -323,17 +354,17 @@ def main():
     
     # Initialize database
     if not SUPABASE_URL or not SUPABASE_KEY:
-        st.error("⚠️ Database not configured. Please set up Supabase credentials in Streamlit secrets.")
-        st.info("Add SUPABASE_URL and SUPABASE_KEY to your Streamlit secrets.")
-        with st.expander("Setup Instructions"):
+        st.error("⚠️ データベースが設定されていません。StreamlitシークレットでSupabase認証情報を設定してください。")
+        st.info("StreamlitシークレットにSUPABASE_URLとSUPABASE_KEYを追加してください。")
+        with st.expander("セットアップ手順"):
             st.markdown("""
-            1. Go to your Streamlit app settings
-            2. Add these secrets:
+            1. Streamlitアプリ設定に移動
+            2. 以下のシークレットを追加:
                ```
                SUPABASE_URL = "your_supabase_project_url"
                SUPABASE_KEY = "your_supabase_anon_key"
                ```
-            3. Create tables in Supabase SQL editor (see Admin Panel for SQL commands)
+            3. Supabase SQLエディタでテーブルを作成（管理パネルのSQLコマンドを参照）
             """)
         use_fallback_mode()
         return
@@ -342,13 +373,13 @@ def main():
     
     # Test connection on first load
     if 'connection_tested' not in st.session_state:
-        with st.spinner("Testing database connection..."):
+        with st.spinner("データベース接続をテスト中..."):
             if db.test_connection():
                 st.session_state.connection_tested = True
-                st.success("✅ Database connected successfully!", icon="✅")
+                st.success("✅ データベースに正常に接続されました!", icon="✅")
             else:
-                st.error("❌ Failed to connect to database. Check your credentials.")
-                st.info("You can still use the fallback mode for testing.")
+                st.error("❌ データベースへの接続に失敗しました。認証情報を確認してください。")
+                st.info("テスト用のフォールバックモードを引き続き使用できます。")
                 use_fallback_mode()
                 return
     
@@ -356,8 +387,8 @@ def main():
     query_params = st.query_params
     direct_item = query_params.get("item", None)
     
-    st.title("🏷️ Digital Memo Tag System")
-    st.markdown("*Cloud-based persistent storage for equipment communication*")
+    st.title("🏷️ デジタルメモタグシステム")
+    st.markdown("*機器コミュニケーション用クラウドベース永続ストレージ*")
     
     # If accessed via QR code, go directly to memo board
     if direct_item:
@@ -365,30 +396,30 @@ def main():
     else:
         # Normal navigation
         with st.sidebar:
-            st.title("🧭 Navigation")
+            st.title("🧭 ナビゲーション")
             
             mode = st.selectbox(
-                "Select Mode",
-                ["🏠 Home", "📱 Memo Board", "⚙️ Admin Panel", "❓ Help"]
+                "モードを選択",
+                ["🏠 ホーム", "📱 メモボード", "⚙️ 管理パネル", "❓ ヘルプ"]
             )
         
-        if mode == "🏠 Home":
+        if mode == "🏠 ホーム":
             show_home_page(db)
-        elif mode == "📱 Memo Board":
+        elif mode == "📱 メモボード":
             show_memo_board(db)
-        elif mode == "⚙️ Admin Panel":
+        elif mode == "⚙️ 管理パネル":
             show_admin_panel(db)
-        elif mode == "❓ Help":
+        elif mode == "❓ ヘルプ":
             show_help_page()
 
 def show_memo_board_direct(item_id, db):
-    """Display memo board directly for QR code access"""
+    """QRコードアクセス用のメモボードを直接表示"""
     items = db.get_items()
     item_dict = {item['item_id']: item for item in items}
     
     if item_id not in item_dict:
-        st.error(f"❌ Item '{item_id}' not found!")
-        if st.button("🏠 Go to Home"):
+        st.error(f"❌ アイテム '{item_id}' が見つかりません!")
+        if st.button("🏠 ホームに移動"):
             st.query_params.clear()
             st.rerun()
         return
@@ -398,7 +429,7 @@ def show_memo_board_direct(item_id, db):
     # Navigation
     col1, col2 = st.columns([1, 5])
     with col1:
-        if st.button("← Back"):
+        if st.button("← 戻る"):
             st.query_params.clear()
             st.rerun()
     
@@ -407,133 +438,120 @@ def show_memo_board_direct(item_id, db):
     
     col1, col2 = st.columns(2)
     with col1:
-        st.info(f"📍 **Location:** {item_info.get('location', 'Unknown')}")
+        st.info(f"📍 **設置場所:** {item_info.get('location', '不明')}")
     with col2:
-        status = item_info.get('status', 'Unknown')
+        status = item_info.get('status', '不明')
+        status_jp = STATUS_TRANSLATIONS.get(status, status)
         status_emoji = {
             "Working": "🟢",
             "Needs Maintenance": "🟡",
             "Out of Order": "🔴"
         }.get(status, "⚪")
-        st.info(f"**Status:** {status_emoji} {status}")
+        st.info(f"**ステータス:** {status_emoji} {status_jp}")
     
     st.divider()
     
     # Quick status update
-    with st.expander("🔄 Quick Status Update"):
+    with st.expander("🔄 ステータス更新"):
         col1, col2 = st.columns([3, 1])
         with col1:
+            status_options = ["Working", "Needs Maintenance", "Out of Order"]
+            current_index = status_options.index(item_info.get('status', 'Working')) if item_info.get('status') in status_options else 0
             new_status = st.selectbox(
-                "Change status to:",
-                ["Working", "Needs Maintenance", "Out of Order"],
-                index=["Working", "Needs Maintenance", "Out of Order"].index(item_info.get('status', 'Working'))
+                "ステータスを変更:",
+                status_options,
+                index=current_index,
+                format_func=lambda x: STATUS_TRANSLATIONS.get(x, x)
             )
         with col2:
-            if st.button("Update", type="primary"):
+            if st.button("更新", type="primary"):
                 if db.update_item_status(item_id, new_status):
                     success, msg = db.add_message(
                         item_id,
-                        f"Status changed to: {new_status}",
-                        "System",
+                        f"ステータス変更: {STATUS_TRANSLATIONS.get(new_status, new_status)}",
+                        "システム",
                         "status_update"
                     )
-                    st.success("✅ Status updated!")
+                    st.success("✅ ステータスが更新されました!")
                     st.rerun()
                 else:
-                    st.error("Failed to update status")
+                    st.error("ステータスの更新に失敗しました")
     
     # Message Board Section
-    st.markdown("### 💬 Message Board")
+    st.markdown("### 💬 メッセージボード")
     
     # Post new message form
     with st.form("new_message_form", clear_on_submit=True):
-        st.markdown("**Post a New Message**")
+        st.markdown("**新しいメッセージを投稿**")
         
         col1, col2 = st.columns([2, 1])
         with col1:
             user_name = st.text_input(
-                "Your name (optional):",
-                placeholder="Anonymous",
+                "お名前（任意）:",
+                placeholder="匿名",
                 key="user_input"
             )
         with col2:
             message_type = st.selectbox(
-                "Type:",
+                "種類:",
                 options=["general", "issue", "fixed", "question"],
+                format_func=lambda x: MESSAGE_TYPE_TRANSLATIONS.get(x, x),
                 key="type_input"
             )
         
         message = st.text_area(
-            "Message:",
-            placeholder="Write your message, instructions, questions, or updates here...",
+            "メッセージ:",
+            placeholder="メッセージ、指示、質問、更新情報をここに書いてください...",
             key="message_input",
             height=100
         )
         
         col1, col2, col3 = st.columns([1, 1, 3])
         with col1:
-            submit_button = st.form_submit_button("📮 Post Message", type="primary")
+            submit_button = st.form_submit_button("📮 メッセージ投稿", type="primary")
         
         if submit_button:
             if message and message.strip():
-                with st.spinner("Posting message..."):
-                    success, error_msg = db.add_message(item_id, message.strip(), user_name or "Anonymous", message_type)
+                with st.spinner("メッセージを投稿中..."):
+                    success, error_msg = db.add_message(item_id, message.strip(), user_name or "匿名", message_type)
                     if success:
-                        st.success("✅ Message posted successfully!")
+                        st.success("✅ メッセージが正常に投稿されました!")
                         st.rerun()
                     else:
                         st.error(f"❌ {error_msg}")
             else:
-                st.warning("⚠️ Please enter a message before posting.")
+                st.warning("⚠️ 投稿する前にメッセージを入力してください。")
     
     # Display messages
     st.divider()
     display_messages_for_item(item_id, db)
 
 def display_messages_for_item(item_id, db):
-    """Display messages for a specific item"""
-    with st.spinner("Loading messages..."):
+    """特定のアイテムのメッセージを表示"""
+    with st.spinner("メッセージを読み込み中..."):
         messages = db.get_messages(item_id)
     
     if not messages:
-        st.info("📭 No messages yet. Be the first to post!")
+        st.info("📭 まだメッセージがありません。最初の投稿者になりましょう!")
         return
     
-    st.markdown(f"**📊 {len(messages)} message(s)**")
-    
-    # Message type emoji mapping
-    type_emoji = {
-        'general': '💬',
-        'issue': '⚠️',
-        'fixed': '✅',
-        'question': '❓',
-        'status_update': '🔄'
-    }
-    
-    # Message type color mapping
-    type_color = {
-        'issue': '#fff3cd',
-        'question': '#d1edff',
-        'fixed': '#d4edda',
-        'status_update': '#e2e3e5',
-        'general': '#f8f9fa'
-    }
+    st.markdown(f"**📊 {len(messages)} 件のメッセージ**")
     
     for msg in messages:
         msg_type = msg.get('msg_type', 'general')
-        emoji = type_emoji.get(msg_type, '💬')
-        bg_color = type_color.get(msg_type, '#f8f9fa')
+        emoji = MESSAGE_TYPE_EMOJIS.get(msg_type, '💬')
+        bg_color = MESSAGE_TYPE_COLORS.get(msg_type, '#f8f9fa')
         
         # Format timestamp
         created_at = msg.get('created_at', '')
         if created_at:
             try:
                 dt = datetime.datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                formatted_time = dt.strftime("%b %d, %Y at %I:%M %p")
+                formatted_time = dt.strftime("%Y年%m月%d日 %H:%M")
             except:
-                formatted_time = "Unknown time"
+                formatted_time = "時刻不明"
         else:
-            formatted_time = "Unknown time"
+            formatted_time = "時刻不明"
         
         # Create message card
         st.markdown(f"""
@@ -551,7 +569,7 @@ def display_messages_for_item(item_id, db):
                 margin-bottom: 8px;
                 font-weight: 500;
             ">
-                {emoji} <strong>{msg.get('user', 'Anonymous')}</strong> • {formatted_time}
+                {emoji} <strong>{msg.get('user', '匿名')}</strong> • {formatted_time}
             </div>
             <div style="
                 font-size: 15px;
@@ -564,37 +582,37 @@ def display_messages_for_item(item_id, db):
         """, unsafe_allow_html=True)
 
 def show_home_page(db):
-    """Display home page with overview"""
-    st.header("🏠 Welcome to Digital Memo System")
+    """概要付きホームページを表示"""
+    st.header("🏠 デジタルメモシステムへようこそ")
     
     # Introduction
     st.markdown("""
-    ### 📱 How It Works
+    ### 📱 使い方
     
-    1. **Equipment Owner** - Attach QR codes to equipment/machines
-    2. **Users** - Scan QR code to access the memo board
-    3. **Communication** - Leave messages, report issues, share instructions
-    4. **Persistence** - All data saved to cloud database
+    1. **機器管理者** - 機器・装置にQRコードを貼り付け
+    2. **利用者** - QRコードをスキャンしてメモボードにアクセス
+    3. **コミュニケーション** - メッセージを残す、問題を報告、指示を共有
+    4. **データ保存** - 全データはクラウドデータベースに保存
     """)
     
     st.divider()
     
     # Statistics
-    with st.spinner("Loading statistics..."):
+    with st.spinner("統計を読み込み中..."):
         items = db.get_items()
         all_messages = db.get_messages()
     
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("📦 Total Items", len(items))
+        st.metric("📦 総アイテム数", len(items))
     
     with col2:
-        st.metric("💬 Total Messages", len(all_messages))
+        st.metric("💬 総メッセージ数", len(all_messages))
     
     with col3:
         issues = len([m for m in all_messages if m.get('msg_type') == 'issue'])
-        st.metric("⚠️ Open Issues", issues)
+        st.metric("⚠️ 未解決問題", issues)
     
     with col4:
         # Messages in last 24 hours
@@ -607,7 +625,7 @@ def show_home_page(db):
                     recent += 1
             except:
                 pass
-        st.metric("🕐 Last 24h", recent)
+        st.metric("🕐 過去24時間", recent)
     
     st.divider()
     
@@ -615,23 +633,23 @@ def show_home_page(db):
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        st.subheader("🚀 Quick Access")
+        st.subheader("🚀 クイックアクセス")
         if items:
-            st.markdown("Jump directly to an item:")
+            st.markdown("アイテムに直接移動:")
             for item in items[:5]:
                 col_a, col_b = st.columns([3, 1])
                 with col_a:
                     st.markdown(f"**{item['name']}**")
-                    st.caption(f"📍 {item.get('location', 'Unknown')}")
+                    st.caption(f"📍 {item.get('location', '不明')}")
                 with col_b:
-                    if st.button("Open", key=f"quick_{item['item_id']}"):
+                    if st.button("開く", key=f"quick_{item['item_id']}"):
                         st.query_params.update({"item": item['item_id']})
                         st.rerun()
         else:
-            st.info("No items configured yet. Add items in the Admin Panel.")
+            st.info("まだアイテムが設定されていません。管理パネルでアイテムを追加してください。")
     
     with col2:
-        st.subheader("📊 Recent Activity")
+        st.subheader("📊 最近のアクティビティ")
         recent_messages = sorted(all_messages, 
                                 key=lambda x: x.get('created_at', ''), 
                                 reverse=True)[:5]
@@ -639,33 +657,36 @@ def show_home_page(db):
         if recent_messages:
             items_dict = {item['item_id']: item['name'] for item in items}
             for msg in recent_messages:
-                item_name = items_dict.get(msg.get('item_id', ''), 'Unknown')
-                st.markdown(f"**{msg.get('user', 'Anonymous')}** → _{item_name}_")
+                item_name = items_dict.get(msg.get('item_id', ''), '不明')
+                st.markdown(f"**{msg.get('user', '匿名')}** → _{item_name}_")
                 with st.container():
-                    st.caption(msg.get('message', '')[:100] + "..." if len(msg.get('message', '')) > 100 else msg.get('message', ''))
+                    message_preview = msg.get('message', '')
+                    if len(message_preview) > 100:
+                        message_preview = message_preview[:100] + "..."
+                    st.caption(message_preview)
         else:
-            st.info("No recent activity")
+            st.info("最近のアクティビティはありません")
 
 def show_memo_board(db):
-    """Display memo board with item selection"""
-    st.header("📱 Memo Board")
+    """アイテム選択付きメモボードを表示"""
+    st.header("📱 メモボード")
     
     items = db.get_items()
     
     if not items:
-        st.warning("⚠️ No items configured yet!")
-        st.info("Please add items in the Admin Panel first.")
+        st.warning("⚠️ まだアイテムが設定されていません!")
+        st.info("まず管理パネルでアイテムを追加してください。")
         
-        if st.button("Go to Admin Panel"):
+        if st.button("管理パネルに移動"):
             st.rerun()
         return
     
     # Item selection
-    item_dict = {item['item_id']: f"{item['name']} ({item.get('location', 'Unknown')})" 
+    item_dict = {item['item_id']: f"{item['name']} ({item.get('location', '不明')})" 
                  for item in items}
     
     selected_item = st.selectbox(
-        "🏷️ Select an Item:",
+        "🏷️ アイテムを選択:",
         options=list(item_dict.keys()),
         format_func=lambda x: item_dict[x]
     )
@@ -676,61 +697,62 @@ def show_memo_board(db):
         show_memo_board_direct(selected_item, db)
 
 def show_admin_panel(db):
-    """Display admin panel for system management"""
-    st.header("⚙️ Admin Panel")
+    """システム管理用の管理パネルを表示"""
+    st.header("⚙️ 管理パネル")
     
-    tab1, tab2, tab3, tab4 = st.tabs(["📦 Items", "💬 Messages", "🏷️ QR Codes", "🗄️ Database"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📦 アイテム", "💬 メッセージ", "🏷️ QRコード", "🗄️ データベース"])
     
     with tab1:
-        st.subheader("📦 Manage Items")
+        st.subheader("📦 アイテム管理")
         
         # Add new item form
-        with st.expander("➕ Add New Item", expanded=True):
+        with st.expander("➕ 新しいアイテムを追加", expanded=True):
             with st.form("add_item_form"):
                 col1, col2 = st.columns(2)
                 
                 with col1:
                     new_id = st.text_input(
-                        "Item ID (unique):",
-                        placeholder="e.g., machine_01",
-                        help="Use letters, numbers, and underscores only"
+                        "アイテムID（ユニーク）:",
+                        placeholder="例: machine_01",
+                        help="英数字とアンダースコアのみ使用"
                     )
                     new_name = st.text_input(
-                        "Item Name:",
-                        placeholder="e.g., 3D Printer #1"
+                        "アイテム名:",
+                        placeholder="例: 3Dプリンター #1"
                     )
                 
                 with col2:
                     new_location = st.text_input(
-                        "Location:",
-                        placeholder="e.g., Workshop Floor 2"
+                        "設置場所:",
+                        placeholder="例: 工場2階"
                     )
                     new_status = st.selectbox(
-                        "Initial Status:",
-                        ["Working", "Needs Maintenance", "Out of Order"]
+                        "初期ステータス:",
+                        ["Working", "Needs Maintenance", "Out of Order"],
+                        format_func=lambda x: STATUS_TRANSLATIONS.get(x, x)
                     )
                 
-                submitted = st.form_submit_button("Add Item", type="primary")
+                submitted = st.form_submit_button("アイテム追加", type="primary")
                 
                 if submitted:
                     if new_id and new_name and new_location:
                         # Validate item_id format
                         if ' ' in new_id or any(c in new_id for c in ['/', '\\', '?', '#']):
-                            st.error("Item ID cannot contain spaces or special characters. Use letters, numbers, and underscores only.")
+                            st.error("アイテムIDにスペースや特殊文字を含めることはできません。英数字とアンダースコアのみ使用してください。")
                         else:
-                            with st.spinner("Adding item..."):
+                            with st.spinner("アイテムを追加中..."):
                                 success, msg = db.add_item(new_id, new_name, new_location, new_status)
                                 if success:
-                                    st.success(f"✅ Item '{new_name}' added successfully!")
+                                    st.success(f"✅ アイテム '{new_name}' が正常に追加されました!")
                                     st.rerun()
                                 else:
-                                    st.error(f"❌ Failed to add item: {msg}")
+                                    st.error(f"❌ アイテムの追加に失敗しました: {msg}")
                     else:
-                        st.error("Please fill in all required fields")
+                        st.error("すべての必須フィールドに入力してください")
         
         # List existing items
         st.divider()
-        st.markdown("### 📋 Current Items")
+        st.markdown("### 📋 現在のアイテム")
         
         items = db.get_items()
         if items:
@@ -742,41 +764,42 @@ def show_admin_panel(db):
                     st.caption(f"ID: {item['item_id']}")
                 
                 with col2:
-                    st.markdown(f"📍 {item.get('location', 'Unknown')}")
+                    st.markdown(f"📍 {item.get('location', '不明')}")
                 
                 with col3:
-                    status = item.get('status', 'Unknown')
+                    status = item.get('status', '不明')
+                    status_jp = STATUS_TRANSLATIONS.get(status, status)
                     status_emoji = {
                         "Working": "🟢",
                         "Needs Maintenance": "🟡",
                         "Out of Order": "🔴"
                     }.get(status, "⚪")
-                    st.markdown(f"{status_emoji} {status}")
+                    st.markdown(f"{status_emoji} {status_jp}")
                 
                 with col4:
-                    if st.button("View", key=f"view_{item['item_id']}"):
+                    if st.button("表示", key=f"view_{item['item_id']}"):
                         st.query_params.update({"item": item['item_id']})
                         st.rerun()
                 
                 with col5:
-                    if st.button("🗑️", key=f"delete_{item['item_id']}", help="Delete item"):
+                    if st.button("🗑️", key=f"delete_{item['item_id']}", help="アイテムを削除"):
                         if st.session_state.get(f"confirm_delete_{item['item_id']}", False):
                             if db.delete_item(item['item_id']):
-                                st.success(f"Deleted {item['name']}")
+                                st.success(f"{item['name']} を削除しました")
                                 st.rerun()
                             else:
-                                st.error("Failed to delete item")
+                                st.error("アイテムの削除に失敗しました")
                         else:
                             st.session_state[f"confirm_delete_{item['item_id']}"] = True
-                            st.warning("Click again to confirm deletion")
+                            st.warning("削除を確認するためもう一度クリックしてください")
                 
                 if idx < len(items) - 1:
                     st.divider()
         else:
-            st.info("No items configured yet. Add your first item above!")
+            st.info("まだアイテムが設定されていません。上記で最初のアイテムを追加してください!")
     
     with tab2:
-        st.subheader("💬 All Messages")
+        st.subheader("💬 すべてのメッセージ")
         
         all_messages = db.get_messages()
         
@@ -785,86 +808,92 @@ def show_admin_panel(db):
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
-                st.metric("Total Messages", len(all_messages))
+                st.metric("総メッセージ数", len(all_messages))
             
             with col2:
                 issues = len([m for m in all_messages if m.get('msg_type') == 'issue'])
-                st.metric("Issues", issues)
+                st.metric("問題", issues)
             
             with col3:
                 questions = len([m for m in all_messages if m.get('msg_type') == 'question'])
-                st.metric("Questions", questions)
+                st.metric("質問", questions)
             
             with col4:
                 fixed = len([m for m in all_messages if m.get('msg_type') == 'fixed'])
-                st.metric("Fixed", fixed)
+                st.metric("修理済み", fixed)
             
             st.divider()
             
             # Filter options
             col1, col2 = st.columns(2)
             with col1:
+                type_options = ["すべて", "general", "issue", "question", "fixed", "status_update"]
                 filter_type = st.selectbox(
-                    "Filter by type:",
-                    ["All", "general", "issue", "question", "fixed", "status_update"]
+                    "種類でフィルタ:",
+                    type_options,
+                    format_func=lambda x: MESSAGE_TYPE_TRANSLATIONS.get(x, x) if x != "すべて" else x
                 )
             
             with col2:
                 items = db.get_items()
-                item_options = ["All"] + [item['item_id'] for item in items]
-                filter_item = st.selectbox("Filter by item:", item_options)
+                item_options = ["すべて"] + [item['item_id'] for item in items]
+                filter_item = st.selectbox("アイテムでフィルタ:", item_options)
             
             # Display messages
             filtered_messages = all_messages
             
-            if filter_type != "All":
+            if filter_type != "すべて":
                 filtered_messages = [m for m in filtered_messages if m.get('msg_type') == filter_type]
             
-            if filter_item != "All":
+            if filter_item != "すべて":
                 filtered_messages = [m for m in filtered_messages if m.get('item_id') == filter_item]
             
-            st.markdown(f"**Showing {len(filtered_messages)} message(s)**")
+            st.markdown(f"**{len(filtered_messages)} 件のメッセージを表示中**")
             
             items_dict = {item['item_id']: item['name'] for item in items}
             
             for msg in filtered_messages[:20]:  # Show latest 20
-                item_name = items_dict.get(msg.get('item_id', ''), 'Unknown Item')
+                item_name = items_dict.get(msg.get('item_id', ''), '不明なアイテム')
                 msg_type = msg.get('msg_type', 'general')
                 
-                type_emoji = {
-                    'general': '💬',
-                    'issue': '⚠️',
-                    'fixed': '✅',
-                    'question': '❓',
-                    'status_update': '🔄'
-                }.get(msg_type, '💬')
+                emoji = MESSAGE_TYPE_EMOJIS.get(msg_type, '💬')
+                type_name = MESSAGE_TYPE_TRANSLATIONS.get(msg_type, msg_type)
                 
-                with st.expander(f"{type_emoji} {item_name} - {msg.get('user', 'Anonymous')}"):
+                with st.expander(f"{emoji} {item_name} - {msg.get('user', '匿名')}"):
                     st.write(msg.get('message', ''))
-                    st.caption(f"Posted: {msg.get('created_at', 'Unknown')}")
+                    created_at = msg.get('created_at', '不明な時刻')
+                    try:
+                        if created_at != '不明な時刻':
+                            dt = datetime.datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                            formatted_time = dt.strftime("%Y年%m月%d日 %H:%M")
+                        else:
+                            formatted_time = created_at
+                    except:
+                        formatted_time = created_at
+                    st.caption(f"投稿日時: {formatted_time}")
         else:
-            st.info("No messages posted yet.")
+            st.info("まだメッセージが投稿されていません。")
     
     with tab3:
-        st.subheader("🏷️ Generate QR Codes")
+        st.subheader("🏷️ QRコード生成")
         
         # Get app URL
         app_url = st.text_input(
-            "Your App URL:",
+            "アプリURL:",
             value="https://kinugasa-hirata-digitalmemotag-memo-system-7egpza.streamlit.app/",
-            help="Your Streamlit app URL (pre-filled with your app's URL)"
+            help="StreamlitアプリのURL（アプリのURLが事前入力されています）"
         )
         
         items = db.get_items()
         
         if not items:
-            st.warning("No items configured yet. Add items first.")
+            st.warning("まだアイテムが設定されていません。まずアイテムを追加してください。")
         elif not QR_AVAILABLE:
-            st.error("QR code library not installed. Run: pip install qrcode[pil]")
+            st.error("QRコードライブラリがインストールされていません。実行: pip install qrcode[pil]")
         else:
-            if st.button("🎯 Generate All QR Codes", type="primary"):
-                st.markdown("### Generated QR Codes")
-                st.info("Right-click and save images to print them")
+            if st.button("🎯 すべてのQRコードを生成", type="primary"):
+                st.markdown("### 生成されたQRコード")
+                st.info("画像を右クリックして保存し、印刷してください")
                 
                 for item in items:
                     st.divider()
@@ -896,19 +925,19 @@ def show_admin_panel(db):
                             st.image(buffer, width=200)
                             
                         except Exception as e:
-                            st.error(f"Error generating QR: {e}")
+                            st.error(f"QR生成エラー: {e}")
                     
                     with col2:
                         st.markdown(f"### {item['name']}")
-                        st.markdown(f"**Location:** {item.get('location', 'Unknown')}")
-                        st.markdown(f"**Item ID:** `{item['item_id']}`")
+                        st.markdown(f"**設置場所:** {item.get('location', '不明')}")
+                        st.markdown(f"**アイテムID:** `{item['item_id']}`")
                         st.code(qr_url, language="text")
                         
                         # Download button
                         try:
                             buffer.seek(0)
                             st.download_button(
-                                label="Download QR Code",
+                                label="QRコードをダウンロード",
                                 data=buffer.getvalue(),
                                 file_name=f"qr_{item['item_id']}.png",
                                 mime="image/png"
@@ -917,12 +946,12 @@ def show_admin_panel(db):
                             pass
     
     with tab4:
-        st.subheader("🗄️ Database Setup")
+        st.subheader("🗄️ データベースセットアップ")
         
-        st.info("Make sure your Supabase tables are properly configured.")
+        st.info("Supabaseテーブルが適切に設定されていることを確認してください。")
         
-        with st.expander("📋 Required Table Schemas"):
-            st.markdown("### Items Table")
+        with st.expander("📋 必要なテーブルスキーマ"):
+            st.markdown("### アイテムテーブル")
             st.code("""
 CREATE TABLE items (
     id SERIAL PRIMARY KEY,
@@ -934,7 +963,7 @@ CREATE TABLE items (
 );
             """, language="sql")
             
-            st.markdown("### Messages Table")
+            st.markdown("### メッセージテーブル")
             st.code("""
 CREATE TABLE messages (
     id SERIAL PRIMARY KEY,
@@ -947,23 +976,23 @@ CREATE TABLE messages (
 );
             """, language="sql")
             
-            st.markdown("### Enable Row Level Security (Optional)")
+            st.markdown("### 行レベルセキュリティを有効化（オプション）")
             st.code("""
--- Enable RLS
+-- RLSを有効化
 ALTER TABLE items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
--- Create policies for public access
+-- パブリックアクセス用のポリシーを作成
 CREATE POLICY "Allow all operations on items" ON items FOR ALL TO anon USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all operations on messages" ON messages FOR ALL TO anon USING (true) WITH CHECK (true);
             """, language="sql")
         
         # Connection test
-        st.markdown("### Connection Test")
-        if st.button("🧪 Test Database Connection"):
-            with st.spinner("Testing connection..."):
+        st.markdown("### 接続テスト")
+        if st.button("🧪 データベース接続をテスト"):
+            with st.spinner("接続をテスト中..."):
                 if db.test_connection():
-                    st.success("✅ Database connection successful!")
+                    st.success("✅ データベース接続成功!")
                     
                     # Test table access
                     items = db.get_items()
@@ -971,128 +1000,128 @@ CREATE POLICY "Allow all operations on messages" ON messages FOR ALL TO anon USI
                     
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.metric("Items found", len(items))
+                        st.metric("見つかったアイテム", len(items))
                     with col2:
-                        st.metric("Messages found", len(messages))
+                        st.metric("見つかったメッセージ", len(messages))
                 else:
-                    st.error("❌ Database connection failed!")
+                    st.error("❌ データベース接続に失敗しました!")
 
 def show_help_page():
-    """Display help and documentation"""
-    st.header("❓ Help & Documentation")
+    """ヘルプとドキュメントを表示"""
+    st.header("❓ ヘルプ & ドキュメント")
     
-    tab1, tab2, tab3 = st.tabs(["🚀 Getting Started", "🔧 Troubleshooting", "📖 FAQ"])
+    tab1, tab2, tab3 = st.tabs(["🚀 はじめに", "🔧 トラブルシューティング", "📖 よくある質問"])
     
     with tab1:
         st.markdown("""
-        ## Getting Started
+        ## はじめに
         
-        ### 1. Setup Database
-        - Create a free Supabase account at supabase.com
-        - Create a new project
-        - Copy your project URL and anon key
-        - Add them to your Streamlit secrets
-        - Run the SQL commands in the Database tab to create tables
+        ### 1. データベースセットアップ
+        - supabase.comで無料アカウントを作成
+        - 新しいプロジェクトを作成
+        - プロジェクトURLとanonキーをコピー
+        - Streamlitシークレットに追加
+        - データベースタブのSQLコマンドを実行してテーブルを作成
         
-        ### 2. Add Items
-        - Go to Admin Panel → Items
-        - Add your equipment/machines with unique IDs
-        - Use simple IDs like "printer_01", "cnc_machine_a"
+        ### 2. アイテム追加
+        - 管理パネル → アイテムに移動
+        - 機器・装置をユニークIDで追加
+        - "printer_01"、"cnc_machine_a"のような簡単なIDを使用
         
-        ### 3. Generate QR Codes
-        - Go to Admin Panel → QR Codes
-        - Enter your app URL
-        - Generate and download QR codes
-        - Print and attach to your equipment
+        ### 3. QRコード生成
+        - 管理パネル → QRコードに移動
+        - アプリURLを入力
+        - QRコードを生成・ダウンロード
+        - 印刷して機器に貼り付け
         
-        ### 4. Test the System
-        - Scan a QR code or use direct links
-        - Post test messages
-        - Update status
+        ### 4. システムテスト
+        - QRコードをスキャンまたは直接リンクを使用
+        - テストメッセージを投稿
+        - ステータスを更新
         """)
     
     with tab2:
         st.markdown("""
-        ## Troubleshooting
+        ## トラブルシューティング
         
-        ### Database Connection Issues
-        - Check your SUPABASE_URL and SUPABASE_KEY in secrets
-        - Ensure tables are created with correct schemas
-        - Verify Row Level Security policies if using RLS
+        ### データベース接続の問題
+        - シークレットのSUPABASE_URLとSUPABASE_KEYを確認
+        - 正しいスキーマでテーブルが作成されていることを確認
+        - RLSを使用している場合は行レベルセキュリティポリシーを確認
         
-        ### Message Posting Fails
-        - Check internet connection
-        - Verify table permissions
-        - Look for special characters in item IDs
-        - Check if item_id exists in items table
+        ### メッセージ投稿の失敗
+        - インターネット接続を確認
+        - テーブル権限を確認
+        - アイテムIDの特殊文字を確認
+        - itemsテーブルにitem_idが存在することを確認
         
-        ### QR Codes Not Working
-        - Install qrcode library: `pip install qrcode[pil]`
-        - Ensure app URL is correct and accessible
-        - Test links manually before printing
+        ### QRコードが機能しない
+        - qrcodeライブラリをインストール: `pip install qrcode[pil]`
+        - アプリURLが正しくアクセス可能であることを確認
+        - 印刷前にリンクを手動でテスト
         
-        ### Performance Issues
-        - Large number of messages may slow loading
-        - Consider implementing pagination for messages
-        - Check database performance in Supabase dashboard
+        ### パフォーマンスの問題
+        - 大量のメッセージは読み込みを遅くする可能性があります
+        - メッセージのページネーション実装を検討
+        - Supabaseダッシュボードでデータベースパフォーマンスを確認
         """)
     
     with tab3:
         st.markdown("""
-        ## Frequently Asked Questions
+        ## よくある質問
         
-        **Q: Is this system free to use?**
-        A: Yes! Uses Supabase free tier which includes 500MB database and 50MB file storage.
+        **Q: このシステムは無料で使用できますか？**
+        A: はい！500MBデータベースと50MBファイルストレージを含むSupabase無料プランを使用します。
         
-        **Q: How many items/messages can I have?**
-        A: Depends on your Supabase plan. Free tier supports thousands of messages.
+        **Q: いくつのアイテム/メッセージを持てますか？**
+        A: Supabaseプランによります。無料プランは数千のメッセージをサポートします。
         
-        **Q: Can I customize the message types?**
-        A: Yes, modify the message_type options in the code.
+        **Q: メッセージタイプをカスタマイズできますか？**
+        A: はい、コード内のmessage_typeオプションを変更してください。
         
-        **Q: Is data backed up?**
-        A: Supabase provides automatic backups. You can also export data manually.
+        **Q: データはバックアップされますか？**
+        A: Supabaseは自動バックアップを提供します。手動でデータをエクスポートすることも可能です。
         
-        **Q: Can I use this offline?**
-        A: No, requires internet connection for database access.
+        **Q: オフラインで使用できますか？**
+        A: いいえ、データベースアクセスにはインターネット接続が必要です。
         
-        **Q: How do I update the app?**
-        A: Replace the code file and restart your Streamlit app.
+        **Q: アプリを更新するには？**
+        A: コードファイルを置き換えてStreamlitアプリを再起動してください。
         
-        **Q: Can multiple people use the same item simultaneously?**
-        A: Yes! Multiple users can post messages to the same item in real-time.
+        **Q: 複数の人が同じアイテムを同時に使用できますか？**
+        A: はい！複数のユーザーが同じアイテムにリアルタイムでメッセージを投稿できます。
         """)
 
 def use_fallback_mode():
-    """Fallback mode without database (for testing)"""
-    st.warning("⚠️ Running in fallback mode - data will not persist!")
+    """フォールバックモード（データベースなし、テスト用）"""
+    st.warning("⚠️ フォールバックモードで実行中 - データは保持されません!")
     
     # Initialize session state
     if 'items' not in st.session_state:
         st.session_state.items = {
-            "test_machine": {"name": "Test Machine", "location": "Workshop", "status": "Working"}
+            "test_machine": {"name": "テストマシン", "location": "工場", "status": "Working"}
         }
     
     if 'messages' not in st.session_state:
         st.session_state.messages = []
     
-    st.subheader("🧪 Test Message Board")
+    st.subheader("🧪 テストメッセージボード")
     
     # Simple message posting
     with st.form("post_message"):
-        name = st.text_input("Your Name:", placeholder="Anonymous")
-        message = st.text_area("Message:")
-        submitted = st.form_submit_button("Post Message")
+        name = st.text_input("お名前:", placeholder="匿名")
+        message = st.text_area("メッセージ:")
+        submitted = st.form_submit_button("メッセージ投稿")
         
         if submitted and message:
             new_msg = {
-                "user": name or "Anonymous",
+                "user": name or "匿名",
                 "message": message,
-                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "timestamp": datetime.datetime.now().strftime("%Y年%m月%d日 %H:%M:%S"),
                 "msg_type": "general"
             }
             st.session_state.messages.insert(0, new_msg)
-            st.success("Message posted!")
+            st.success("メッセージが投稿されました!")
             st.rerun()
     
     # Display messages
