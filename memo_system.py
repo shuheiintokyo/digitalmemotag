@@ -851,8 +851,8 @@ def show_admin_panel(db):
         # Get app URL
         app_url = st.text_input(
             "Your App URL:",
-            value="https://your-app-name.streamlit.app",
-            help="Enter your Streamlit app URL (from Share button)"
+            value="https://kinugasa-hirata-digitalmemotag-memo-system-7egpza.streamlit.app/",
+            help="Your Streamlit app URL (pre-filled with your app's URL)"
         )
         
         items = db.get_items()
