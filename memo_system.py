@@ -340,7 +340,7 @@ def main():
     query_params = st.query_params
     direct_item = query_params.get("item", None)
     
-    st.title("🏷️ デジタルメモタグシステム")
+    # st.title("🏷️ デジタルメモタグシステム")
     # st.markdown("*機器コミュニケーション用クラウドベース永続ストレージ*")
     
     # If accessed via QR code, go directly to memo board
@@ -454,7 +454,6 @@ def show_memo_board_direct(item_id, db):
         
         message_type = "general"
 
-        
         message = st.text_area(
             "メッセージ:",
             placeholder="メッセージ、指示、質問、更新情報をここに書いてください...",
