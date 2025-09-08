@@ -341,7 +341,7 @@ def main():
     direct_item = query_params.get("item", None)
     
     st.title("🏷️ デジタルメモタグシステム")
-    st.markdown("*機器コミュニケーション用クラウドベース永続ストレージ*")
+    # st.markdown("*機器コミュニケーション用クラウドベース永続ストレージ*")
     
     # If accessed via QR code, go directly to memo board
     if direct_item:
@@ -389,48 +389,48 @@ def show_memo_board_direct(item_id, db):
     # Item Header
     st.markdown(f"## 🏷️ {item_info['name']}")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        st.info(f"📍 **設置場所:** {item_info.get('location', '不明')}")
-    with col2:
-        status = item_info.get('status', '不明')
-        status_jp = STATUS_TRANSLATIONS.get(status, status)
-        status_emoji = {
-            "Working": "🟢",
-            "Needs Maintenance": "🟡",
-            "Out of Order": "🔴"
-        }.get(status, "⚪")
-        st.info(f"**ステータス:** {status_emoji} {status_jp}")
+    # col1, col2 = st.columns(2)
+    # with col1:
+    #     st.info(f"📍 **設置場所:** {item_info.get('location', '不明')}")
+    # with col2:
+    #     status = item_info.get('status', '不明')
+    #     status_jp = STATUS_TRANSLATIONS.get(status, status)
+    #     status_emoji = {
+    #         "Working": "🟢",
+    #         "Needs Maintenance": "🟡",
+    #         "Out of Order": "🔴"
+    #     }.get(status, "⚪")
+    #     st.info(f"**ステータス:** {status_emoji} {status_jp}")
     
-    st.divider()
+    # st.divider()
     
-    # Quick status update
-    with st.expander("🔄 ステータス更新"):
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            status_options = ["Working", "Needs Maintenance", "Out of Order"]
-            current_index = status_options.index(item_info.get('status', 'Working')) if item_info.get('status') in status_options else 0
-            new_status = st.selectbox(
-                "ステータスを変更:",
-                status_options,
-                index=current_index,
-                format_func=lambda x: STATUS_TRANSLATIONS.get(x, x)
-            )
-        with col2:
-            if st.button("更新", type="primary"):
-                if db.update_item_status(item_id, new_status):
-                    success, msg = db.add_message(
-                        item_id,
-                        f"ステータス変更: {STATUS_TRANSLATIONS.get(new_status, new_status)}",
-                        "システム",
-                        "status_update"
-                    )
-                    st.success("✅ ステータスが更新されました!")
-                    st.rerun()
-                else:
-                    st.error("ステータスの更新に失敗しました")
+    # # Quick status update
+    # with st.expander("🔄 ステータス更新"):
+    #     col1, col2 = st.columns([3, 1])
+    #     with col1:
+    #         status_options = ["Working", "Needs Maintenance", "Out of Order"]
+    #         current_index = status_options.index(item_info.get('status', 'Working')) if item_info.get('status') in status_options else 0
+    #         new_status = st.selectbox(
+    #             "ステータスを変更:",
+    #             status_options,
+    #             index=current_index,
+    #             format_func=lambda x: STATUS_TRANSLATIONS.get(x, x)
+    #         )
+    #     with col2:
+    #         if st.button("更新", type="primary"):
+    #             if db.update_item_status(item_id, new_status):
+    #                 success, msg = db.add_message(
+    #                     item_id,
+    #                     f"ステータス変更: {STATUS_TRANSLATIONS.get(new_status, new_status)}",
+    #                     "システム",
+    #                     "status_update"
+    #                 )
+    #                 st.success("✅ ステータスが更新されました!")
+    #                 st.rerun()
+    #             else:
+    #                 st.error("ステータスの更新に失敗しました")
     
-    # Message Board Section
+    # # Message Board Section
     st.markdown("### 💬 メッセージボード")
     
     # Post new message form
