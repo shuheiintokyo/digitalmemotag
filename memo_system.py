@@ -329,7 +329,7 @@ def main():
         with st.spinner("データベース接続をテスト中..."):
             if db.test_connection():
                 st.session_state.connection_tested = True
-                st.success("✅ データベースに正常に接続されました!", icon="✅")
+                # st.success("✅ データベースに正常に接続されました!", icon="✅")
             else:
                 st.error("❌ データベースへの接続に失敗しました。認証情報を確認してください。")
                 st.info("テスト用のフォールバックモードを引き続き使用できます。")
@@ -379,12 +379,12 @@ def show_memo_board_direct(item_id, db):
     
     item_info = item_dict[item_id]
     
-    # Navigation
-    col1, col2 = st.columns([1, 5])
-    with col1:
-        if st.button("← 戻る"):
-            st.query_params.clear()
-            st.rerun()
+    # # Navigation
+    # col1, col2 = st.columns([1, 5])
+    # with col1:
+    #     if st.button("← 戻る"):
+    #         st.query_params.clear()
+    #         st.rerun()
     
     # Item Header
     st.markdown(f"## 🏷️ {item_info['name']}")
@@ -444,13 +444,16 @@ def show_memo_board_direct(item_id, db):
                 placeholder="匿名",
                 key="user_input"
             )
-        with col2:
-            message_type = st.selectbox(
-                "種類:",
-                options=["general", "issue", "fixed", "question"],
-                format_func=lambda x: MESSAGE_TYPE_TRANSLATIONS.get(x, x),
-                key="type_input"
-            )
+        # with col2:
+        #     message_type = st.selectbox(
+        #         "種類:",
+        #         options=["general", "issue", "fixed", "question"],
+        #         format_func=lambda x: MESSAGE_TYPE_TRANSLATIONS.get(x, x),
+        #         key="type_input"
+        #     )
+        
+        message_type = "general"
+
         
         message = st.text_area(
             "メッセージ:",
