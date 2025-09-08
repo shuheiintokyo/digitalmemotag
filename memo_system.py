@@ -1,5 +1,6 @@
 import streamlit as st
 import datetime
+import pytz  # Add this import for timezone handling
 import requests
 import json
 import uuid
@@ -17,6 +18,31 @@ except ImportError:
 # Supabase configuration
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
+
+def format_timestamp_jst(timestamp_str):
+    """Convert UTC timestamp to JST and format for display"""
+    if not timestamp_str:
+        return "時刻不明"
+    
+    try:
+        # Parse the UTC timestamp
+        if timestamp_str.endswith('Z'):
+            dt_utc = datetime.datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        elif '+00:00' in timestamp_str:
+            dt_utc = datetime.datetime.fromisoformat(timestamp_str)
+        else:
+            # Assume UTC if no timezone info
+            dt_utc = datetime.datetime.fromisoformat(timestamp_str).replace(tzinfo=datetime.timezone.utc)
+        
+        # Convert to JST (UTC+9)
+        jst = pytz.timezone('Asia/Tokyo')
+        dt_jst = dt_utc.astimezone(jst)
+        
+        # Format in Japanese style
+        return dt_jst.strftime("%Y年%m月%d日 %H:%M")
+    except Exception as e:
+        print(f"Timestamp parsing error: {e}")
+        return "時刻不明"
 
 # Japanese translations
 STATUS_TRANSLATIONS = {
@@ -119,7 +145,7 @@ class Database:
                         transformed_msg = {
                             'item_id': payload.get('item_id', ''),
                             'message': payload.get('message', ''),
-                            'user': payload.get('user', 'Anonymous'),
+                            'user_name': payload.get('user', 'Anonymous'),  # Map to user_name
                             'msg_type': msg.get('topic', 'general'),
                             'created_at': msg.get('created_at', ''),
                             'id': msg.get('id', '')
@@ -175,46 +201,28 @@ class Database:
             return False, str(e)
     
     def add_message(self, item_id, message, user, msg_type="general"):
-        """新しいメッセージをデータベースに追加 - スキーマ柔軟版"""
+        """新しいメッセージをデータベースに追加 - user_name列を使用"""
         try:
-            # Ensure user is not None or empty
-            user = user.strip() if user and user.strip() else "匿名"
+            # Clean and validate user input
+            user = user.strip() if user and user.strip() else ""
+            message = message.strip() if message else ""
             
-            # First, let's detect the table schema by checking existing messages
-            existing_messages = self.get_messages()
+            if not message:
+                return False, "メッセージが空です"
             
-            # Check if we're using JSONB structure or flat structure
-            if existing_messages and 'payload' in existing_messages[0]:
-                # JSONB structure (like "Message Table Inspection")
-                payload = {
-                    "message": message.strip(),
-                    "user": user,
-                    "item_id": item_id
-                }
-                
-                data = {
-                    "topic": msg_type,
-                    "payload": payload,
-                    "event": "message_posted",
-                    "extension": "memo_system",
-                    "private": False,
-                    "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
-                }
-            else:
-                # Try different possible column names for user
-                # Common variations: user, username, author, posted_by, user_name
-                data = {
-                    "item_id": item_id,
-                    "message": message.strip(),
-                    "msg_type": msg_type,
-                    "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
-                }
-                
-                # Try different user column names
-                possible_user_columns = ['user', 'username', 'author', 'posted_by', 'user_name']
-                data['user'] = user  # Start with 'user'
+            # Set default user if empty
+            final_user = user if user else "匿名"
             
-            # Make the request with proper error handling
+            # Use user_name column to match your database schema
+            data = {
+                "item_id": item_id,
+                "message": message,
+                "user_name": final_user,  # Use user_name to match your DB schema
+                "msg_type": msg_type,
+                "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+            }
+            
+            # Make the request
             response = requests.post(
                 f"{self.base_url}/rest/v1/{self.messages_table}",
                 headers=self.headers,
@@ -237,10 +245,6 @@ class Database:
                 except:
                     error_detail = response.text
                 
-                # If user column error, try alternative approaches
-                if "user" in error_detail.lower() and "column" in error_detail.lower():
-                    return self._try_alternative_user_columns(item_id, message, user, msg_type)
-                
                 return False, f"メッセージ投稿に失敗しました (ステータス {response.status_code}): {error_detail}"
                 
         except requests.exceptions.Timeout:
@@ -249,57 +253,6 @@ class Database:
             return False, "接続エラー。インターネット接続を確認してください。"
         except Exception as e:
             return False, f"予期しないエラー: {str(e)}"
-    
-    def _try_alternative_user_columns(self, item_id, message, user, msg_type):
-        """ユーザーの代替列名を試行"""
-        alternative_columns = ['username', 'author', 'posted_by', 'user_name']
-        
-        for col_name in alternative_columns:
-            try:
-                data = {
-                    "item_id": item_id,
-                    "message": message.strip(),
-                    "msg_type": msg_type,
-                    col_name: user,
-                    "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
-                }
-                
-                response = requests.post(
-                    f"{self.base_url}/rest/v1/{self.messages_table}",
-                    headers=self.headers,
-                    json=data,
-                    timeout=10
-                )
-                
-                if response.status_code == 201:
-                    return True, f"メッセージが正常に投稿されました ({col_name} 列を使用)"
-                    
-            except Exception:
-                continue
-        
-        # If all alternatives fail, try without user column
-        try:
-            data = {
-                "item_id": item_id,
-                "message": f"[{user}]: {message.strip()}",  # Include user in message text
-                "msg_type": msg_type,
-                "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
-            }
-            
-            response = requests.post(
-                f"{self.base_url}/rest/v1/{self.messages_table}",
-                headers=self.headers,
-                json=data,
-                timeout=10
-            )
-            
-            if response.status_code == 201:
-                return True, "メッセージが投稿されました（ユーザー情報はメッセージテキストに含まれます）"
-                
-        except Exception:
-            pass
-            
-        return False, "互換性のあるユーザー列が見つかりませんでした。データベーススキーマを確認してください。"
     
     def update_item_status(self, item_id, status):
         """アイテムステータスを更新"""
@@ -527,7 +480,7 @@ def show_memo_board_direct(item_id, db):
     display_messages_for_item(item_id, db)
 
 def display_messages_for_item(item_id, db):
-    """特定のアイテムのメッセージを表示"""
+    """特定のアイテムのメッセージを表示 - user_name列対応版"""
     with st.spinner("メッセージを読み込み中..."):
         messages = db.get_messages(item_id)
     
@@ -542,16 +495,12 @@ def display_messages_for_item(item_id, db):
         emoji = MESSAGE_TYPE_EMOJIS.get(msg_type, '💬')
         bg_color = MESSAGE_TYPE_COLORS.get(msg_type, '#f8f9fa')
         
-        # Format timestamp
+        # Get user name - use user_name column from your database
+        user_name = msg.get('user_name', '匿名')
+        
+        # Format timestamp with JST conversion
         created_at = msg.get('created_at', '')
-        if created_at:
-            try:
-                dt = datetime.datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                formatted_time = dt.strftime("%Y年%m月%d日 %H:%M")
-            except:
-                formatted_time = "時刻不明"
-        else:
-            formatted_time = "時刻不明"
+        formatted_time = format_timestamp_jst(created_at)
         
         # Create message card
         st.markdown(f"""
@@ -569,7 +518,7 @@ def display_messages_for_item(item_id, db):
                 margin-bottom: 8px;
                 font-weight: 500;
             ">
-                {emoji} <strong>{msg.get('user', '匿名')}</strong> • {formatted_time}
+                {emoji} <strong>{user_name}</strong> • {formatted_time}
             </div>
             <div style="
                 font-size: 15px;
@@ -658,7 +607,7 @@ def show_home_page(db):
             items_dict = {item['item_id']: item['name'] for item in items}
             for msg in recent_messages:
                 item_name = items_dict.get(msg.get('item_id', ''), '不明')
-                st.markdown(f"**{msg.get('user', '匿名')}** → _{item_name}_")
+                st.markdown(f"**{msg.get('user_name', '匿名')}** → _{item_name}_")
                 with st.container():
                     message_preview = msg.get('message', '')
                     if len(message_preview) > 100:
@@ -859,17 +808,10 @@ def show_admin_panel(db):
                 emoji = MESSAGE_TYPE_EMOJIS.get(msg_type, '💬')
                 type_name = MESSAGE_TYPE_TRANSLATIONS.get(msg_type, msg_type)
                 
-                with st.expander(f"{emoji} {item_name} - {msg.get('user', '匿名')}"):
+                with st.expander(f"{emoji} {item_name} - {msg.get('user_name', '匿名')}"):
                     st.write(msg.get('message', ''))
                     created_at = msg.get('created_at', '不明な時刻')
-                    try:
-                        if created_at != '不明な時刻':
-                            dt = datetime.datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                            formatted_time = dt.strftime("%Y年%m月%d日 %H:%M")
-                        else:
-                            formatted_time = created_at
-                    except:
-                        formatted_time = created_at
+                    formatted_time = format_timestamp_jst(created_at)
                     st.caption(f"投稿日時: {formatted_time}")
         else:
             st.info("まだメッセージが投稿されていません。")
@@ -1115,7 +1057,7 @@ def use_fallback_mode():
         
         if submitted and message:
             new_msg = {
-                "user": name or "匿名",
+                "user_name": name or "匿名",  # Use user_name for consistency
                 "message": message,
                 "timestamp": datetime.datetime.now().strftime("%Y年%m月%d日 %H:%M:%S"),
                 "msg_type": "general"
@@ -1129,7 +1071,7 @@ def use_fallback_mode():
         st.markdown(f"""
         <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin: 10px 0; background-color: #f9f9f9;">
             <div style="font-size: 14px; color: #666; margin-bottom: 8px;">
-                💬 <strong>{msg['user']}</strong> • {msg['timestamp']}
+                💬 <strong>{msg['user_name']}</strong> • {msg['timestamp']}
             </div>
             <div style="font-size: 16px; line-height: 1.4;">
                 {msg['message']}
