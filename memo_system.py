@@ -331,14 +331,14 @@ def show_password_form():
     
     /* Style form elements inside the login box */
     .stForm .stTextInput > label {
-        color: black !important;
+        color: white !important;
         font-size: 1.1rem !important;
         font-weight: 600 !important;
         margin-bottom: 0.5rem !important;
     }
     
     .stForm .stTextInput input {
-        background-color: white !important;
+        background-color: rgba(255, 255, 255, 0.9) !important;
         border: 2px solid rgba(255, 255, 255, 0.3) !important;
         border-radius: 10px !important;
         padding: 1rem !important;
@@ -348,13 +348,13 @@ def show_password_form():
     
     .stForm .stTextInput input:focus {
         border-color: rgba(255, 255, 255, 0.8) !important;
-        box-shadow: white !important;
+        box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2) !important;
     }
     
     .stForm .stButton button {
-        background: white !important;
+        background: rgba(255, 255, 255, 0.2) !important;
         border: 2px solid rgba(255, 255, 255, 0.5) !important;
-        color: black !important;
+        color: white !important;
         font-weight: bold !important;
         font-size: 1.2rem !important;
         padding: 0.8rem 2rem !important;
@@ -364,14 +364,14 @@ def show_password_form():
     }
     
     .stForm .stButton button:hover {
-        background: white !important;
+        background: rgba(255, 255, 255, 0.3) !important;
         border-color: rgba(255, 255, 255, 0.8) !important;
         transform: translateY(-2px) !important;
-        box-shadow: white !important;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2) !important;
     }
     
     .login-title {
-        color: black;
+        color: white;
         font-size: 2.5rem;
         font-weight: bold;
         text-align: center;
@@ -379,7 +379,7 @@ def show_password_form():
     }
     
     .login-subtitle {
-        color: gray;
+        color: rgba(255, 255, 255, 0.9);
         font-size: 1.2rem;
         text-align: center;
         margin-bottom: 2rem;
@@ -756,7 +756,7 @@ def show_memo_board_direct(item_id, db):
         with col1:
             user_name = st.text_input(
                 "お名前（任意）:",
-                # placeholder="匿名",
+                placeholder="匿名",
                 key="user_input"
             )
         
@@ -945,18 +945,18 @@ def show_admin_panel(db):
                 with col1:
                     new_id = st.text_input(
                         "管理番号ID（ダブらないように!）:",
-                        # placeholder="例: 20250909_01",
+                        placeholder="例: 20250909_01",
                         help="英数字とアンダースコアのみ使用してください。スペースや特殊文字は不可。"
                     )
                     new_name = st.text_input(
-                        # "アイテム名:",
+                        "アイテム名:",
                         placeholder="例:樹脂カバーA"
                     )
                 
                 with col2:
                     new_location = st.text_input(
                         "場所:",
-                        # placeholder="例: 工場2階"
+                        placeholder="例: 工場2階"
                     )
                     new_status = st.selectbox(
                         "分類:",
