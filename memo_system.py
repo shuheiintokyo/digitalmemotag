@@ -411,7 +411,7 @@ def show_password_form():
             )
             
             # Login button
-            submit_button = st.form_submit_button("ログイン", type="primary")
+            submit_button = st.form_submit_button("ログイン")
             
             if submit_button:
                 if password and len(password) == 4 and password.isdigit():
