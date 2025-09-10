@@ -306,57 +306,93 @@ def check_password():
 
 def show_password_form():
     """パスワード入力フォームを表示"""
+    # Add custom CSS for the login form
     st.markdown("""
-    <div style="
+    <style>
+    .login-container {
         display: flex;
         justify-content: center;
         align-items: center;
-        min-height: 60vh;
-    ">
-        <div style="
-            background-color: white;
-            padding: 3rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            text-align: center;
-            max-width: 400px;
-            width: 100%;
-        ">
+        min-height: 70vh;
+        padding: 2rem;
+    }
+    .login-box {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 4rem 3rem;
+        border-radius: 20px;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        text-align: center;
+        min-width: 500px;
+        max-width: 600px;
+        width: 90%;
+        color: white;
+    }
+    .login-title {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 1rem;
+        color: white;
+    }
+    .login-subtitle {
+        font-size: 1.2rem;
+        margin-bottom: 2rem;
+        opacity: 0.9;
+        color: white;
+    }
+    </style>
     """, unsafe_allow_html=True)
     
-    st.markdown("## 🔐 管理者ログイン")
-    st.markdown("管理ダッシュボードにアクセスするには4桁のパスワードを入力してください")
+    st.markdown("""
+    <div class="login-container">
+        <div class="login-box">
+            <div class="login-title">🔐 管理者ログイン</div>
+            <div class="login-subtitle">管理ダッシュボードにアクセスするにはパスワードを入力してください</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
-    with st.form("password_form"):
-        password = st.text_input(
-            "パスワード (4桁)",
-            type="password",
-            max_chars=4,
-            placeholder="****"
-        )
-        
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            submit_button = st.form_submit_button("ログイン", type="primary", use_container_width=True)
-        
-        if submit_button:
-            if password and len(password) == 4 and password.isdigit():
-                # You can change this password as needed
-                ADMIN_PASSWORD = "1234"  # Change this to your desired 4-digit password
-                
-                if password == ADMIN_PASSWORD:
-                    st.session_state.authenticated = True
-                    st.success("✅ ログイン成功!")
-                    st.rerun()
+    # Create centered columns for the form
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        with st.form("password_form"):
+            password = st.text_input(
+                "パスワード",
+                type="password",
+                max_chars=4,
+                placeholder="パスワードを入力",
+                label_visibility="collapsed"
+            )
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            submit_button = st.form_submit_button(
+                "ログイン", 
+                type="primary", 
+                use_container_width=True
+            )
+            
+            if submit_button:
+                if password and len(password) == 4 and password.isdigit():
+                    # You can change this password as needed
+                    ADMIN_PASSWORD = "1234"  # Change this to your desired 4-digit password
+                    
+                    if password == ADMIN_PASSWORD:
+                        st.session_state.authenticated = True
+                        st.success("✅ ログイン成功!")
+                        st.rerun()
+                    else:
+                        st.error("❌ パスワードが正しくありません")
                 else:
-                    st.error("❌ パスワードが正しくありません")
-            else:
-                st.error("⚠️ 4桁の数字を入力してください")
+                    st.error("⚠️ 正しいパスワードを入力してください")
     
-    st.markdown("</div></div>", unsafe_allow_html=True)
+    # Add some spacing
+    st.markdown("<br><br>", unsafe_allow_html=True)
     
-    st.markdown("---")
-    st.info("💡 QRコードからのメッセージ投稿にはパスワードは不要です")
+    # Info section
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.info("💡 QRコードからのメッセージ投稿にはパスワードは不要です")
 
 def main():
     """メインアプリケーション関数"""
