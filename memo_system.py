@@ -305,143 +305,125 @@ def check_password():
     return st.session_state.authenticated
 
 def show_password_form():
-    """パスワード入力フォームを表示"""
-    # Add custom CSS for the integrated login form
+    """シンプルな白黒ログインフォーム"""
+    # Minimal black and white CSS
     st.markdown("""
     <style>
-    .login-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 70vh;
-        padding: 2rem;
-    }
-    
-    /* Style the Streamlit form container */
+    /* Clean white background for everything */
     .stForm {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-        padding: 4rem 3rem !important;
-        border-radius: 20px !important;
-        box-shadow: 0 15px 35px rgba(0,0,0,0.15) !important;
-        border: none !important;
-        min-width: 500px;
-        max-width: 600px;
-        margin: 0 auto;
+        background-color: white !important;
+        background-image: none !important;
+        background: white !important;
+        padding: 3rem !important;
+        border: 2px solid #000000 !important;
+        border-radius: 8px !important;
+        max-width: 400px !important;
+        margin: 0 auto !important;
+        box-shadow: none !important;
     }
     
-    /* Style form elements inside the login box */
-    .stForm .stTextInput > label {
-        color: white !important;
-        font-size: 1.1rem !important;
-        font-weight: 600 !important;
-        margin-bottom: 0.5rem !important;
+    /* Remove any inherited backgrounds */
+    .stForm > div,
+    .stForm .stMarkdown,
+    .stForm .stTextInput,
+    .stForm .stButton {
+        background: none !important;
+        background-color: transparent !important;
+        background-image: none !important;
     }
     
+    /* Simple black text */
+    .simple-title {
+        color: #000000 !important;
+        font-size: 1.8rem !important;
+        font-weight: bold !important;
+        text-align: center !important;
+        margin-bottom: 2rem !important;
+        background: none !important;
+    }
+    
+    /* Black labels */
+    .stForm .stTextInput label {
+        color: #000000 !important;
+        font-size: 1rem !important;
+        font-weight: normal !important;
+        background: none !important;
+    }
+    
+    /* Simple white input with black border */
     .stForm .stTextInput input {
-        background-color: rgba(255, 255, 255, 0.9) !important;
-        border: 2px solid rgba(255, 255, 255, 0.3) !important;
-        border-radius: 10px !important;
-        padding: 1rem !important;
-        font-size: 1.1rem !important;
+        background-color: white !important;
+        border: 2px solid #000000 !important;
+        border-radius: 4px !important;
+        color: #000000 !important;
+        font-size: 1.2rem !important;
+        padding: 0.8rem !important;
+        text-align: center !important;
+    }
+    
+    .stForm .stTextInput input::placeholder {
+        color: #666666 !important;
         text-align: center !important;
     }
     
     .stForm .stTextInput input:focus {
-        border-color: rgba(255, 255, 255, 0.8) !important;
-        box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2) !important;
+        border-color: #000000 !important;
+        box-shadow: none !important;
+        outline: none !important;
     }
     
+    /* Simple black button */
     .stForm .stButton button {
-        background: rgba(255, 255, 255, 0.2) !important;
-        border: 2px solid rgba(255, 255, 255, 0.5) !important;
+        background-color: #000000 !important;
         color: white !important;
+        border: none !important;
+        font-size: 1.1rem !important;
         font-weight: bold !important;
-        font-size: 1.2rem !important;
         padding: 0.8rem 2rem !important;
-        border-radius: 10px !important;
-        transition: all 0.3s ease !important;
+        border-radius: 4px !important;
         width: 100% !important;
+        cursor: pointer !important;
     }
     
     .stForm .stButton button:hover {
-        background: rgba(255, 255, 255, 0.3) !important;
-        border-color: rgba(255, 255, 255, 0.8) !important;
-        transform: translateY(-2px) !important;
-        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2) !important;
-    }
-    
-    .login-title {
-        color: white;
-        font-size: 2.5rem;
-        font-weight: bold;
-        text-align: center;
-        margin-bottom: 1rem;
-    }
-    
-    .login-subtitle {
-        color: rgba(255, 255, 255, 0.9);
-        font-size: 1.2rem;
-        text-align: center;
-        margin-bottom: 2rem;
+        background-color: #333333 !important;
+        transform: none !important;
+        box-shadow: none !important;
     }
     </style>
     """, unsafe_allow_html=True)
     
-    # Create centered columns for the entire login box
-    col1, col2, col3 = st.columns([1, 2, 1])
+    # Center the form
+    col1, col2, col3 = st.columns([1, 1, 1])
     
     with col2:
         with st.form("password_form"):
-            # Title and subtitle inside the form
-            st.markdown('<div class="login-title">🔐 管理者ログイン</div>', unsafe_allow_html=True)
-            st.markdown('<div class="login-subtitle">管理ダッシュボードにアクセスするにはパスワードを入力してください</div>', unsafe_allow_html=True)
+            # Simple title
+            st.markdown('<div class="simple-title">管理者ログイン</div>', unsafe_allow_html=True)
             
+            # Password input
             password = st.text_input(
                 "パスワード",
                 type="password",
                 max_chars=4,
-                placeholder="パスワードを入力",
+                # placeholder="パスワード入力",
                 key="login_password"
             )
             
-            st.markdown("<br>", unsafe_allow_html=True)
-            
-            submit_button = st.form_submit_button(
-                "ログイン", 
-                type="primary", 
-                use_container_width=True
-            )
+            # Login button
+            submit_button = st.form_submit_button("ログイン", type="primary")
             
             if submit_button:
                 if password and len(password) == 4 and password.isdigit():
-                    # You can change this password as needed
-                    ADMIN_PASSWORD = "1234"  # Change this to your desired 4-digit password
+                    ADMIN_PASSWORD = "1234"
                     
                     if password == ADMIN_PASSWORD:
-                        # Show loading state and clear page to prevent mixed rendering
-                        with st.spinner('ログイン中...'):
-                            import time
-                            time.sleep(1)  # Brief pause to ensure clean transition
-                            st.session_state.authenticated = True
-                        
-                        # Use st.empty() to completely clear the page before rerun
-                        placeholder = st.empty()
-                        placeholder.empty()
+                        st.session_state.authenticated = True
                         st.rerun()
                     else:
-                        st.error("❌ パスワードが正しくありません")
+                        st.error("パスワードが正しくありません")
                 else:
-                    st.error("⚠️ 正しいパスワードを入力してください")
-    
-    # Only show the info message if authentication hasn't just succeeded
-    if not st.session_state.get('authenticated', False):
-        # Add some spacing
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        
-        # Info section outside the login box
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.info("💡 QRコードからのメッセージ投稿にはパスワードは不要です")
+                    st.error("正しいパスワードを入力してください")
 
 def main():
     """メインアプリケーション関数"""
@@ -568,40 +550,74 @@ def main():
         box-shadow: 0 4px 8px rgba(0,0,0,0.15);
     }
     
-    /* Form styling - MUCH LARGER */
+    /* Form styling - MUCH LARGER with PROPERLY CENTERED PLACEHOLDERS */
     .stSelectbox > div > div {
         font-size: 28px !important;
         min-height: 60px;
+        text-align: center !important;
     }
     
     .stSelectbox label {
         font-size: 26px !important;
         font-weight: 600 !important;
         margin-bottom: 1rem !important;
+        text-align: left !important;
     }
     
     .stTextInput > div > div > input {
         font-size: 28px !important;
         padding: 1.5rem !important;
         min-height: 60px;
+        text-align: center !important;
+    }
+    
+    .stTextInput > div > div > input::placeholder {
+        text-align: center !important;
+        font-size: 28px !important;
+        color: #999 !important;
+        opacity: 1 !important;
     }
     
     .stTextInput label {
         font-size: 26px !important;
         font-weight: 600 !important;
         margin-bottom: 1rem !important;
+        text-align: left !important;
     }
     
     .stTextArea > div > div > textarea {
         font-size: 28px !important;
         padding: 1.5rem !important;
         min-height: 120px;
+        text-align: left !important;
+    }
+    
+    .stTextArea > div > div > textarea::placeholder {
+        font-size: 28px !important;
+        color: #999 !important;
+        opacity: 1 !important;
+        text-align: left !important;
     }
     
     .stTextArea label {
         font-size: 26px !important;
         font-weight: 600 !important;
         margin-bottom: 1rem !important;
+        text-align: left !important;
+    }
+    
+    /* Center dropdown content properly */
+    .stSelectbox > div > div > div {
+        text-align: center !important;
+    }
+    
+    /* Center form submit buttons */
+    .stFormSubmitButton > button {
+        font-size: 28px !important;
+        padding: 1.2rem 2rem !important;
+        min-height: 60px !important;
+        margin: 0 auto !important;
+        display: block !important;
     }
     
     /* Metric styling - MUCH LARGER */
@@ -647,14 +663,6 @@ def main():
     .stMarkdown h4, .stMarkdown h5, .stMarkdown h6 {
         font-size: 2.5rem !important;
         font-weight: bold !important;
-    }
-    
-    /* Password form styling */
-    .stForm {
-        background-color: #f8f9fa;
-        padding: 2rem;
-        border-radius: 12px;
-        border: 1px solid #dee2e6;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -756,7 +764,7 @@ def show_memo_board_direct(item_id, db):
         with col1:
             user_name = st.text_input(
                 "お名前（任意）:",
-                placeholder="匿名",
+                # placeholder="匿名",
                 key="user_input"
             )
         
@@ -764,7 +772,7 @@ def show_memo_board_direct(item_id, db):
 
         message = st.text_area(
             "メッセージ:",
-            placeholder="メッセージ、指示、質問、更新情報をここに書いてください...",
+            # placeholder="メッセージ、指示、質問、更新情報をここに書いてください...",
             key="message_input",
             height=100
         )
@@ -945,18 +953,18 @@ def show_admin_panel(db):
                 with col1:
                     new_id = st.text_input(
                         "管理番号ID（ダブらないように!）:",
-                        placeholder="例: 20250909_01",
+                        # placeholder="例: 20250909_01",
                         help="英数字とアンダースコアのみ使用してください。スペースや特殊文字は不可。"
                     )
                     new_name = st.text_input(
                         "アイテム名:",
-                        placeholder="例:樹脂カバーA"
+                        # placeholder="例:樹脂カバーA"
                     )
                 
                 with col2:
                     new_location = st.text_input(
                         "場所:",
-                        placeholder="例: 工場2階"
+                        # placeholder="例: 工場2階"
                     )
                     new_status = st.selectbox(
                         "分類:",
