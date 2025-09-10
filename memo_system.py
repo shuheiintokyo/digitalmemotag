@@ -453,20 +453,27 @@ def main():
         display: none;
     }
     
-    /* Tab styling - INCREASED SIZE */
+    /* Hide any flash messages during transitions */
+    .stAlert[data-testid="stNotificationContentInfo"] {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+    }
+    
+    /* Tab styling - MUCH LARGER */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 32px;
+        gap: 40px;
         justify-content: center;
         margin-bottom: 2rem;
         background-color: #f8f9fa;
-        padding: 1rem;
+        padding: 1.5rem;
         border-radius: 12px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     
     .stTabs [data-baseweb="tab"] {
-        height: 70px;
-        padding: 0px 40px;
+        height: 90px;
+        padding: 0px 50px;
         background-color: white;
         border-radius: 8px;
         border: 2px solid transparent;
@@ -481,7 +488,7 @@ def main():
     }
     
     .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
-        font-size: 24px !important;
+        font-size: 36px !important;
         font-weight: bold;
         color: #37474f;
         margin: 0;
@@ -507,43 +514,46 @@ def main():
         padding-right: 2rem;
     }
     
-    /* Header styling - INCREASED SIZE */
+    /* Header styling - MUCH LARGER */
     h1, h2, h3 {
         font-weight: bold !important;
         color: #263238;
     }
     
     h1 {
-        font-size: 3rem !important;
+        font-size: 5rem !important;
     }
     
     h2 {
-        font-size: 2.5rem !important;
+        font-size: 4rem !important;
     }
     
     h3 {
-        font-size: 2rem !important;
+        font-size: 3rem !important;
     }
     
-    /* Make regular text much larger for desktop - INCREASED SIZE */
+    /* Make regular text MUCH larger for desktop */
     .stMarkdown p {
-        font-size: 20px !important;
+        font-size: 30px !important;
         line-height: 1.6;
+        font-weight: 500;
     }
     
-    /* List items larger */
+    /* List items much larger */
     .stMarkdown li {
-        font-size: 20px !important;
+        font-size: 28px !important;
         line-height: 1.6;
+        margin-bottom: 0.5rem;
     }
     
-    /* Button styling - INCREASED SIZE */
+    /* Button styling - MUCH LARGER */
     .stButton > button {
         font-weight: 600;
         border-radius: 8px;
         transition: all 0.3s ease;
-        font-size: 18px !important;
-        padding: 0.8rem 1.5rem !important;
+        font-size: 28px !important;
+        padding: 1.2rem 2rem !important;
+        min-height: 60px;
     }
     
     .stButton > button:hover {
@@ -551,64 +561,85 @@ def main():
         box-shadow: 0 4px 8px rgba(0,0,0,0.15);
     }
     
-    /* Form styling - INCREASED SIZE */
+    /* Form styling - MUCH LARGER */
     .stSelectbox > div > div {
-        font-size: 20px !important;
+        font-size: 28px !important;
+        min-height: 60px;
     }
     
     .stSelectbox label {
-        font-size: 18px !important;
+        font-size: 26px !important;
         font-weight: 600 !important;
+        margin-bottom: 1rem !important;
     }
     
     .stTextInput > div > div > input {
-        font-size: 20px !important;
-        padding: 1rem !important;
+        font-size: 28px !important;
+        padding: 1.5rem !important;
+        min-height: 60px;
     }
     
     .stTextInput label {
-        font-size: 18px !important;
+        font-size: 26px !important;
         font-weight: 600 !important;
+        margin-bottom: 1rem !important;
     }
     
     .stTextArea > div > div > textarea {
-        font-size: 20px !important;
-        padding: 1rem !important;
+        font-size: 28px !important;
+        padding: 1.5rem !important;
+        min-height: 120px;
     }
     
     .stTextArea label {
-        font-size: 18px !important;
+        font-size: 26px !important;
         font-weight: 600 !important;
+        margin-bottom: 1rem !important;
     }
     
-    /* Metric styling - INCREASED SIZE */
+    /* Metric styling - MUCH LARGER */
     .metric-container [data-testid="metric-container"] {
-        font-size: 24px !important;
+        font-size: 40px !important;
     }
     
     .metric-container [data-testid="metric-container"] label {
-        font-size: 20px !important;
-    }
-    
-    /* Info/Warning/Error boxes - INCREASED SIZE */
-    .stAlert {
-        font-size: 18px !important;
-    }
-    
-    /* Expander styling - INCREASED SIZE */
-    .streamlit-expanderHeader {
-        font-size: 20px !important;
+        font-size: 32px !important;
         font-weight: 600 !important;
     }
     
-    /* Caption styling - INCREASED SIZE */
-    .caption {
-        font-size: 16px !important;
+    /* Info/Warning/Error boxes - MUCH LARGER */
+    .stAlert {
+        font-size: 26px !important;
+        padding: 1.5rem !important;
     }
     
-    /* Code blocks - INCREASED SIZE */
+    /* Expander styling - MUCH LARGER */
+    .streamlit-expanderHeader {
+        font-size: 30px !important;
+        font-weight: 600 !important;
+        padding: 1rem !important;
+    }
+    
+    /* Caption styling - LARGER */
+    .caption {
+        font-size: 22px !important;
+    }
+    
+    /* Code blocks - LARGER */
     .stCode {
-        font-size: 16px !important;
+        font-size: 22px !important;
+        padding: 1rem !important;
+    }
+    
+    /* Table styling - LARGER */
+    .stDataFrame {
+        font-size: 24px !important;
+    }
+    
+    /* Subheader styling - MUCH LARGER */
+    .stMarkdown h4, .stMarkdown h5, .stMarkdown h6 {
+        font-size: 2.5rem !important;
+        font-weight: bold !important;
     }
     
     /* Password form styling */
