@@ -306,7 +306,7 @@ def check_password():
 
 def show_password_form():
     """パスワード入力フォームを表示"""
-    # Add custom CSS for the login form
+    # Add custom CSS for the integrated login form
     st.markdown("""
     <style>
     .login-container {
@@ -316,52 +316,92 @@ def show_password_form():
         min-height: 70vh;
         padding: 2rem;
     }
-    .login-box {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 4rem 3rem;
-        border-radius: 20px;
-        box-shadow: 0 15px 35px rgba(0,0,0,0.1);
-        text-align: center;
+    
+    /* Style the Streamlit form container */
+    .stForm {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        padding: 4rem 3rem !important;
+        border-radius: 20px !important;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.15) !important;
+        border: none !important;
         min-width: 500px;
         max-width: 600px;
-        width: 90%;
-        color: white;
+        margin: 0 auto;
     }
+    
+    /* Style form elements inside the login box */
+    .stForm .stTextInput > label {
+        color: white !important;
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        margin-bottom: 0.5rem !important;
+    }
+    
+    .stForm .stTextInput input {
+        background-color: rgba(255, 255, 255, 0.9) !important;
+        border: 2px solid rgba(255, 255, 255, 0.3) !important;
+        border-radius: 10px !important;
+        padding: 1rem !important;
+        font-size: 1.1rem !important;
+        text-align: center !important;
+    }
+    
+    .stForm .stTextInput input:focus {
+        border-color: rgba(255, 255, 255, 0.8) !important;
+        box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2) !important;
+    }
+    
+    .stForm .stButton button {
+        background: rgba(255, 255, 255, 0.2) !important;
+        border: 2px solid rgba(255, 255, 255, 0.5) !important;
+        color: white !important;
+        font-weight: bold !important;
+        font-size: 1.2rem !important;
+        padding: 0.8rem 2rem !important;
+        border-radius: 10px !important;
+        transition: all 0.3s ease !important;
+        width: 100% !important;
+    }
+    
+    .stForm .stButton button:hover {
+        background: rgba(255, 255, 255, 0.3) !important;
+        border-color: rgba(255, 255, 255, 0.8) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2) !important;
+    }
+    
     .login-title {
+        color: white;
         font-size: 2.5rem;
         font-weight: bold;
+        text-align: center;
         margin-bottom: 1rem;
-        color: white;
     }
+    
     .login-subtitle {
+        color: rgba(255, 255, 255, 0.9);
         font-size: 1.2rem;
+        text-align: center;
         margin-bottom: 2rem;
-        opacity: 0.9;
-        color: white;
     }
     </style>
     """, unsafe_allow_html=True)
     
-    st.markdown("""
-    <div class="login-container">
-        <div class="login-box">
-            <div class="login-title">🔐 管理者ログイン</div>
-            <div class="login-subtitle">管理ダッシュボードにアクセスするにはパスワードを入力してください</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Create centered columns for the form
+    # Create centered columns for the entire login box
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
         with st.form("password_form"):
+            # Title and subtitle inside the form
+            st.markdown('<div class="login-title">🔐 管理者ログイン</div>', unsafe_allow_html=True)
+            st.markdown('<div class="login-subtitle">管理ダッシュボードにアクセスするにはパスワードを入力してください</div>', unsafe_allow_html=True)
+            
             password = st.text_input(
                 "パスワード",
                 type="password",
                 max_chars=4,
                 placeholder="パスワードを入力",
-                label_visibility="collapsed"
+                key="login_password"
             )
             
             st.markdown("<br>", unsafe_allow_html=True)
@@ -389,7 +429,7 @@ def show_password_form():
     # Add some spacing
     st.markdown("<br><br>", unsafe_allow_html=True)
     
-    # Info section
+    # Info section outside the login box
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.info("💡 QRコードからのメッセージ投稿にはパスワードは不要です")
