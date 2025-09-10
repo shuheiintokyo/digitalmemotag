@@ -418,8 +418,15 @@ def show_password_form():
                     ADMIN_PASSWORD = "1234"  # Change this to your desired 4-digit password
                     
                     if password == ADMIN_PASSWORD:
-                        st.session_state.authenticated = True
-                        # Don't show success message to avoid the flash
+                        # Show loading state and clear page to prevent mixed rendering
+                        with st.spinner('ログイン中...'):
+                            import time
+                            time.sleep(1)  # Brief pause to ensure clean transition
+                            st.session_state.authenticated = True
+                        
+                        # Use st.empty() to completely clear the page before rerun
+                        placeholder = st.empty()
+                        placeholder.empty()
                         st.rerun()
                     else:
                         st.error("❌ パスワードが正しくありません")
