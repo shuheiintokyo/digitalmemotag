@@ -296,14 +296,185 @@ class Database:
             st.error(f"アイテム削除で例外発生: {e}")
             return False
 
+def check_password():
+    """パスワード認証をチェック"""
+    # Initialize authentication state
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+    
+    return st.session_state.authenticated
+
+def show_password_form():
+    """パスワード入力フォームを表示"""
+    st.markdown("""
+    <div style="
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 60vh;
+    ">
+        <div style="
+            background-color: white;
+            padding: 3rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        ">
+    """, unsafe_allow_html=True)
+    
+    st.markdown("## 🔐 管理者ログイン")
+    st.markdown("管理ダッシュボードにアクセスするには4桁のパスワードを入力してください")
+    
+    with st.form("password_form"):
+        password = st.text_input(
+            "パスワード (4桁)",
+            type="password",
+            max_chars=4,
+            placeholder="****"
+        )
+        
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            submit_button = st.form_submit_button("ログイン", type="primary", use_container_width=True)
+        
+        if submit_button:
+            if password and len(password) == 4 and password.isdigit():
+                # You can change this password as needed
+                ADMIN_PASSWORD = "1234"  # Change this to your desired 4-digit password
+                
+                if password == ADMIN_PASSWORD:
+                    st.session_state.authenticated = True
+                    st.success("✅ ログイン成功!")
+                    st.rerun()
+                else:
+                    st.error("❌ パスワードが正しくありません")
+            else:
+                st.error("⚠️ 4桁の数字を入力してください")
+    
+    st.markdown("</div></div>", unsafe_allow_html=True)
+    
+    st.markdown("---")
+    st.info("💡 QRコードからのメッセージ投稿にはパスワードは不要です")
+
 def main():
     """メインアプリケーション関数"""
     st.set_page_config(
         page_title="デジタルメモタグシステム",
         page_icon="🏷️",
         layout="wide",
-        initial_sidebar_state="expanded"
+        initial_sidebar_state="collapsed"  # Hide sidebar since we're using horizontal tabs
     )
+    
+    # Add custom CSS for better navigation and typography
+    st.markdown("""
+    <style>
+    /* Hide sidebar completely */
+    .css-1d391kg {
+        display: none;
+    }
+    
+    /* Tab styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 32px;
+        justify-content: center;
+        margin-bottom: 2rem;
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        height: 60px;
+        padding: 0px 32px;
+        background-color: white;
+        border-radius: 8px;
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+    }
+    
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: #e3f2fd;
+        border-color: #2196f3;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    
+    .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
+        font-size: 20px;
+        font-weight: bold;
+        color: #37474f;
+        margin: 0;
+        text-align: center;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background-color: #2196f3 !important;
+        border-color: #2196f3 !important;
+        box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4) !important;
+    }
+    
+    .stTabs [aria-selected="true"] [data-testid="stMarkdownContainer"] p {
+        color: white !important;
+        font-weight: 900;
+    }
+    
+    /* Main content styling */
+    .block-container {
+        padding-top: 2rem;
+        max-width: none;
+        padding-left: 2rem;
+        padding-right: 2rem;
+    }
+    
+    /* Header styling */
+    h1, h2, h3 {
+        font-weight: bold !important;
+        color: #263238;
+    }
+    
+    /* Make regular text slightly larger for desktop */
+    .stMarkdown p {
+        font-size: 16px;
+        line-height: 1.6;
+    }
+    
+    /* Button styling */
+    .stButton > button {
+        font-weight: 600;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    
+    /* Form styling */
+    .stSelectbox > div > div {
+        font-size: 16px;
+    }
+    
+    .stTextInput > div > div > input {
+        font-size: 16px;
+    }
+    
+    .stTextArea > div > div > textarea {
+        font-size: 16px;
+    }
+    
+    /* Password form styling */
+    .stForm {
+        background-color: #f8f9fa;
+        padding: 2rem;
+        border-radius: 12px;
+        border: 1px solid #dee2e6;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
     # Initialize database
     if not SUPABASE_URL or not SUPABASE_KEY:
@@ -329,7 +500,6 @@ def main():
         with st.spinner("データベース接続をテスト中..."):
             if db.test_connection():
                 st.session_state.connection_tested = True
-                # st.success("✅ データベースに正常に接続されました!", icon="✅")
             else:
                 st.error("❌ データベースへの接続に失敗しました。認証情報を確認してください。")
                 st.info("テスト用のフォールバックモードを引き続き使用できます。")
@@ -340,30 +510,40 @@ def main():
     query_params = st.query_params
     direct_item = query_params.get("item", None)
     
-    # st.title("🏷️ デジタルメモタグシステム")
-    # st.markdown("*機器コミュニケーション用クラウドベース永続ストレージ*")
-    
-    # If accessed via QR code, go directly to memo board
+    # If accessed via QR code, go directly to memo board (no password required)
     if direct_item:
         show_memo_board_direct(direct_item, db)
     else:
-        # Normal navigation
-        with st.sidebar:
-            st.title("🧭 ナビゲーション")
+        # Check password for main dashboard access
+        if not check_password():
+            show_password_form()
+        else:
+            # Add logout button in top right
+            col1, col2, col3 = st.columns([6, 1, 1])
+            with col3:
+                if st.button("🚪 ログアウト"):
+                    st.session_state.authenticated = False
+                    st.rerun()
             
-            mode = st.selectbox(
-                "モードを選択",
-                ["🏠 ホーム", "📱 メモボード", "⚙️ 管理パネル", "❓ ヘルプ"]
-            )
-        
-        if mode == "🏠 ホーム":
-            show_home_page(db)
-        elif mode == "📱 メモボード":
-            show_memo_board(db)
-        elif mode == "⚙️ 管理パネル":
-            show_admin_panel(db)
-        elif mode == "❓ ヘルプ":
-            show_help_page()
+            # Create horizontal navigation tabs
+            tab1, tab2, tab3, tab4 = st.tabs([
+                "🏠 **ホーム**", 
+                "📱 **メモボード**", 
+                "⚙️ **管理パネル**", 
+                "❓ **ヘルプ**"
+            ])
+            
+            with tab1:
+                show_home_page(db)
+            
+            with tab2:
+                show_memo_board(db)
+            
+            with tab3:
+                show_admin_panel(db)
+            
+            with tab4:
+                show_help_page()
 
 def show_memo_board_direct(item_id, db):
     """QRコードアクセス用のメモボードを直接表示"""
@@ -379,58 +559,10 @@ def show_memo_board_direct(item_id, db):
     
     item_info = item_dict[item_id]
     
-    # # Navigation
-    # col1, col2 = st.columns([1, 5])
-    # with col1:
-    #     if st.button("← 戻る"):
-    #         st.query_params.clear()
-    #         st.rerun()
-    
     # Item Header
     st.markdown(f"## 🏷️ {item_info['name']}")
     
-    # col1, col2 = st.columns(2)
-    # with col1:
-    #     st.info(f"📍 **設置場所:** {item_info.get('location', '不明')}")
-    # with col2:
-    #     status = item_info.get('status', '不明')
-    #     status_jp = STATUS_TRANSLATIONS.get(status, status)
-    #     status_emoji = {
-    #         "Working": "🟢",
-    #         "Needs Maintenance": "🟡",
-    #         "Out of Order": "🔴"
-    #     }.get(status, "⚪")
-    #     st.info(f"**ステータス:** {status_emoji} {status_jp}")
-    
-    # st.divider()
-    
-    # # Quick status update
-    # with st.expander("🔄 ステータス更新"):
-    #     col1, col2 = st.columns([3, 1])
-    #     with col1:
-    #         status_options = ["Working", "Needs Maintenance", "Out of Order"]
-    #         current_index = status_options.index(item_info.get('status', 'Working')) if item_info.get('status') in status_options else 0
-    #         new_status = st.selectbox(
-    #             "ステータスを変更:",
-    #             status_options,
-    #             index=current_index,
-    #             format_func=lambda x: STATUS_TRANSLATIONS.get(x, x)
-    #         )
-    #     with col2:
-    #         if st.button("更新", type="primary"):
-    #             if db.update_item_status(item_id, new_status):
-    #                 success, msg = db.add_message(
-    #                     item_id,
-    #                     f"ステータス変更: {STATUS_TRANSLATIONS.get(new_status, new_status)}",
-    #                     "システム",
-    #                     "status_update"
-    #                 )
-    #                 st.success("✅ ステータスが更新されました!")
-    #                 st.rerun()
-    #             else:
-    #                 st.error("ステータスの更新に失敗しました")
-    
-    # # Message Board Section
+    # Message Board Section
     st.markdown("### 💬 メッセージボード")
     
     # Post new message form
@@ -444,13 +576,6 @@ def show_memo_board_direct(item_id, db):
                 placeholder="匿名",
                 key="user_input"
             )
-        # with col2:
-        #     message_type = st.selectbox(
-        #         "種類:",
-        #         options=["general", "issue", "fixed", "question"],
-        #         format_func=lambda x: MESSAGE_TYPE_TRANSLATIONS.get(x, x),
-        #         key="type_input"
-        #     )
         
         message_type = "general"
 
@@ -546,37 +671,10 @@ def show_home_page(db):
     4. **データ保存** - 全データはクラウドデータベースに保存
     """)
     
-    # st.divider()
-    
-    # # Statistics
+    # Statistics
     with st.spinner("統計を読み込み中..."):
         items = db.get_items()
         all_messages = db.get_messages()
-    
-    # col1, col2, col3, col4 = st.columns(4)
-    
-    # with col1:
-    #     st.metric("📦 総アイテム数", len(items))
-    
-    # with col2:
-    #     st.metric("💬 総メッセージ数", len(all_messages))
-    
-    # with col3:
-    #     issues = len([m for m in all_messages if m.get('msg_type') == 'issue'])
-    #     st.metric("⚠️ 未解決問題", issues)
-    
-    # with col4:
-    #     # Messages in last 24 hours
-    #     recent = 0
-    #     now = datetime.datetime.now(datetime.timezone.utc)
-    #     for msg in all_messages:
-    #         try:
-    #             msg_time = datetime.datetime.fromisoformat(msg.get('created_at', '').replace('Z', '+00:00'))
-    #             if (now - msg_time).total_seconds() < 86400:
-    #                 recent += 1
-    #         except:
-    #             pass
-    #     st.metric("🕐 過去24時間", recent)
     
     st.divider()
     
@@ -678,7 +776,7 @@ def show_admin_panel(db):
                         placeholder="例: 工場2階"
                     )
                     new_status = st.selectbox(
-                        "初期ステータス:",
+                        "分類:",
                         ["Working", "Needs Maintenance", "Out of Order"],
                         format_func=lambda x: STATUS_TRANSLATIONS.get(x, x)
                     )
