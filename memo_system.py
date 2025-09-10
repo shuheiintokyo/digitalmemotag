@@ -46,9 +46,9 @@ def format_timestamp_jst(timestamp_str):
 
 # Japanese translations
 STATUS_TRANSLATIONS = {
-    "Working": "稼働中",
-    "Needs Maintenance": "メンテナンス要",
-    "Out of Order": "故障中"
+    "Working": "社内対応",
+    "Needs Maintenance": "社外対応",
+    "Out of Order": "保留中"
 }
 
 MESSAGE_TYPE_TRANSLATIONS = {
@@ -546,37 +546,37 @@ def show_home_page(db):
     4. **データ保存** - 全データはクラウドデータベースに保存
     """)
     
-    st.divider()
+    # st.divider()
     
-    # Statistics
+    # # Statistics
     with st.spinner("統計を読み込み中..."):
         items = db.get_items()
         all_messages = db.get_messages()
     
-    col1, col2, col3, col4 = st.columns(4)
+    # col1, col2, col3, col4 = st.columns(4)
     
-    with col1:
-        st.metric("📦 総アイテム数", len(items))
+    # with col1:
+    #     st.metric("📦 総アイテム数", len(items))
     
-    with col2:
-        st.metric("💬 総メッセージ数", len(all_messages))
+    # with col2:
+    #     st.metric("💬 総メッセージ数", len(all_messages))
     
-    with col3:
-        issues = len([m for m in all_messages if m.get('msg_type') == 'issue'])
-        st.metric("⚠️ 未解決問題", issues)
+    # with col3:
+    #     issues = len([m for m in all_messages if m.get('msg_type') == 'issue'])
+    #     st.metric("⚠️ 未解決問題", issues)
     
-    with col4:
-        # Messages in last 24 hours
-        recent = 0
-        now = datetime.datetime.now(datetime.timezone.utc)
-        for msg in all_messages:
-            try:
-                msg_time = datetime.datetime.fromisoformat(msg.get('created_at', '').replace('Z', '+00:00'))
-                if (now - msg_time).total_seconds() < 86400:
-                    recent += 1
-            except:
-                pass
-        st.metric("🕐 過去24時間", recent)
+    # with col4:
+    #     # Messages in last 24 hours
+    #     recent = 0
+    #     now = datetime.datetime.now(datetime.timezone.utc)
+    #     for msg in all_messages:
+    #         try:
+    #             msg_time = datetime.datetime.fromisoformat(msg.get('created_at', '').replace('Z', '+00:00'))
+    #             if (now - msg_time).total_seconds() < 86400:
+    #                 recent += 1
+    #         except:
+    #             pass
+    #     st.metric("🕐 過去24時間", recent)
     
     st.divider()
     
@@ -600,7 +600,7 @@ def show_home_page(db):
             st.info("まだアイテムが設定されていません。管理パネルでアイテムを追加してください。")
     
     with col2:
-        st.subheader("📊 最近のアクティビティ")
+        st.subheader("📊 直近の投稿一覧")
         recent_messages = sorted(all_messages, 
                                 key=lambda x: x.get('created_at', ''), 
                                 reverse=True)[:5]
@@ -663,18 +663,18 @@ def show_admin_panel(db):
                 
                 with col1:
                     new_id = st.text_input(
-                        "アイテムID（ユニーク）:",
-                        placeholder="例: machine_01",
-                        help="英数字とアンダースコアのみ使用"
+                        "管理番号ID（ダブらないように!）:",
+                        placeholder="例: 20250909_01",
+                        help="英数字とアンダースコアのみ使用してください。スペースや特殊文字は不可。"
                     )
                     new_name = st.text_input(
                         "アイテム名:",
-                        placeholder="例: 3Dプリンター #1"
+                        placeholder="例:樹脂カバーA"
                     )
                 
                 with col2:
                     new_location = st.text_input(
-                        "設置場所:",
+                        "場所:",
                         placeholder="例: 工場2階"
                     )
                     new_status = st.selectbox(
