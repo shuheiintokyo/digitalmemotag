@@ -419,20 +419,22 @@ def show_password_form():
                     
                     if password == ADMIN_PASSWORD:
                         st.session_state.authenticated = True
-                        st.success("✅ ログイン成功!")
+                        # Don't show success message to avoid the flash
                         st.rerun()
                     else:
                         st.error("❌ パスワードが正しくありません")
                 else:
                     st.error("⚠️ 正しいパスワードを入力してください")
     
-    # Add some spacing
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    
-    # Info section outside the login box
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.info("💡 QRコードからのメッセージ投稿にはパスワードは不要です")
+    # Only show the info message if authentication hasn't just succeeded
+    if not st.session_state.get('authenticated', False):
+        # Add some spacing
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        
+        # Info section outside the login box
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.info("💡 QRコードからのメッセージ投稿にはパスワードは不要です")
 
 def main():
     """メインアプリケーション関数"""
@@ -451,7 +453,7 @@ def main():
         display: none;
     }
     
-    /* Tab styling */
+    /* Tab styling - INCREASED SIZE */
     .stTabs [data-baseweb="tab-list"] {
         gap: 32px;
         justify-content: center;
@@ -463,8 +465,8 @@ def main():
     }
     
     .stTabs [data-baseweb="tab"] {
-        height: 60px;
-        padding: 0px 32px;
+        height: 70px;
+        padding: 0px 40px;
         background-color: white;
         border-radius: 8px;
         border: 2px solid transparent;
@@ -479,7 +481,7 @@ def main():
     }
     
     .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
-        font-size: 20px;
+        font-size: 24px !important;
         font-weight: bold;
         color: #37474f;
         margin: 0;
@@ -505,23 +507,43 @@ def main():
         padding-right: 2rem;
     }
     
-    /* Header styling */
+    /* Header styling - INCREASED SIZE */
     h1, h2, h3 {
         font-weight: bold !important;
         color: #263238;
     }
     
-    /* Make regular text slightly larger for desktop */
+    h1 {
+        font-size: 3rem !important;
+    }
+    
+    h2 {
+        font-size: 2.5rem !important;
+    }
+    
+    h3 {
+        font-size: 2rem !important;
+    }
+    
+    /* Make regular text much larger for desktop - INCREASED SIZE */
     .stMarkdown p {
-        font-size: 16px;
+        font-size: 20px !important;
         line-height: 1.6;
     }
     
-    /* Button styling */
+    /* List items larger */
+    .stMarkdown li {
+        font-size: 20px !important;
+        line-height: 1.6;
+    }
+    
+    /* Button styling - INCREASED SIZE */
     .stButton > button {
         font-weight: 600;
         border-radius: 8px;
         transition: all 0.3s ease;
+        font-size: 18px !important;
+        padding: 0.8rem 1.5rem !important;
     }
     
     .stButton > button:hover {
@@ -529,17 +551,64 @@ def main():
         box-shadow: 0 4px 8px rgba(0,0,0,0.15);
     }
     
-    /* Form styling */
+    /* Form styling - INCREASED SIZE */
     .stSelectbox > div > div {
-        font-size: 16px;
+        font-size: 20px !important;
+    }
+    
+    .stSelectbox label {
+        font-size: 18px !important;
+        font-weight: 600 !important;
     }
     
     .stTextInput > div > div > input {
-        font-size: 16px;
+        font-size: 20px !important;
+        padding: 1rem !important;
+    }
+    
+    .stTextInput label {
+        font-size: 18px !important;
+        font-weight: 600 !important;
     }
     
     .stTextArea > div > div > textarea {
-        font-size: 16px;
+        font-size: 20px !important;
+        padding: 1rem !important;
+    }
+    
+    .stTextArea label {
+        font-size: 18px !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Metric styling - INCREASED SIZE */
+    .metric-container [data-testid="metric-container"] {
+        font-size: 24px !important;
+    }
+    
+    .metric-container [data-testid="metric-container"] label {
+        font-size: 20px !important;
+    }
+    
+    /* Info/Warning/Error boxes - INCREASED SIZE */
+    .stAlert {
+        font-size: 18px !important;
+    }
+    
+    /* Expander styling - INCREASED SIZE */
+    .streamlit-expanderHeader {
+        font-size: 20px !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Caption styling - INCREASED SIZE */
+    .caption {
+        font-size: 16px !important;
+    }
+    
+    /* Code blocks - INCREASED SIZE */
+    .stCode {
+        font-size: 16px !important;
     }
     
     /* Password form styling */
