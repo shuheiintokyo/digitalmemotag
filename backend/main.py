@@ -30,6 +30,10 @@ ADMIN_PASSWORD = "1234"
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
+# Print to verify environment variables are loaded
+print(f"SUPABASE_URL: {SUPABASE_URL}")
+print(f"SUPABASE_KEY: {'Set' if SUPABASE_KEY else 'Not set'}")
+
 # Pydantic models
 class ItemCreate(BaseModel):
     item_id: str
@@ -294,39 +298,12 @@ def create_item(item: ItemCreate, _: str = Depends(verify_admin_token)):
         raise HTTPException(status_code=400, detail=message)
 
 @app.patch("/items/{item_id}/status")
-async def update_item_status(item_id: str, status_update: StatusUpdate, _: str = Depends(verify_admin_token)):
+def update_item_status(item_id: str, status_update: StatusUpdate, _: str = Depends(verify_admin_token)):
     success = db.update_item_status(item_id, status_update.status)
     if success:
-        # Broadcast status update via WebSocket
-        await manager.broadcast_status_update(item_id, status_update.status)
         return {"success": True, "message": "Status updated"}
     else:
         raise HTTPException(status_code=400, detail="Failed to update status")
-
-# WebSocket endpoints
-@app.websocket("/ws/item/{item_id}")
-async def websocket_item_endpoint(websocket: WebSocket, item_id: str):
-    await manager.connect_to_item(websocket, item_id)
-    try:
-        while True:
-            # Keep connection alive by waiting for messages
-            data = await websocket.receive_text()
-            # Echo received data (heartbeat)
-            await websocket.send_text(f"Connected to item {item_id}")
-    except WebSocketDisconnect:
-        manager.disconnect_from_item(websocket, item_id)
-
-@app.websocket("/ws/admin")
-async def websocket_admin_endpoint(websocket: WebSocket):
-    await manager.connect_admin(websocket)
-    try:
-        while True:
-            # Keep connection alive by waiting for messages
-            data = await websocket.receive_text()
-            # Echo received data (heartbeat)
-            await websocket.send_text("Admin connected")
-    except WebSocketDisconnect:
-        manager.disconnect_admin(websocket)
 
 @app.delete("/items/{item_id}")
 def delete_item(item_id: str, _: str = Depends(verify_admin_token)):
