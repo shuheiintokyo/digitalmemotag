@@ -1,31 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { getItem, getMessages, createMessage, Message, Item } from '../lib/api';
-import { useWebSocket } from '../lib/useWebSocket';
 
 interface MemoBoardProps {
   itemId: string;
   isDirectAccess?: boolean;
 }
 
-const MESSAGE_TYPE_EMOJIS = {
-  'general': '💬',
-  'issue': '⚠️',
-  'fixed': '✅', 
-  'question': '❓',
-  'status_update': '🔄'
-};
-
-const MESSAGE_TYPE_COLORS = {
-  'issue': 'bg-yellow-50 border-yellow-200',
-  'question': 'bg-blue-50 border-blue-200',
-  'fixed': 'bg-green-50 border-green-200',
-  'status_update': 'bg-gray-50 border-gray-200',
-  'general': 'bg-gray-50 border-gray-200'
-};
-
-const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false }) => {
-  const [item, setItem] = useState<Item | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+const SimpleMemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false }) => {
+  const [item, setItem] = useState<any>(null);
+  const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [postLoading, setPostLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,44 +15,34 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
   // Form state
   const [userName, setUserName] = useState('');
   const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState('general');
 
   useEffect(() => {
     fetchData();
   }, [itemId]);
 
-  // WebSocket connection for real-time updates
-  const { isConnected, connectionStatus } = useWebSocket({
-    url: `/ws/item/${itemId}`,
-    onMessage: (message) => {
-      if (message.type === 'new_message' && message.data.item_id === itemId) {
-        // Add new message to the list without full refresh
-        setMessages(prev => [message.data, ...prev]);
-      } else if (message.type === 'status_update' && message.data.item_id === itemId) {
-        // Update item status
-        setItem(prev => prev ? { ...prev, status: message.data.status } : null);
-      }
-    },
-    onConnect: () => {
-      console.log('Connected to WebSocket for item:', itemId);
-    },
-    onDisconnect: () => {
-      console.log('Disconnected from WebSocket');
-    }
-  });
-
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [itemData, messagesData] = await Promise.all([
-        getItem(itemId),
-        getMessages(itemId)
-      ]);
-      setItem(itemData);
-      setMessages(messagesData);
+      
+      // Fetch item data
+      const itemResponse = await fetch(`http://localhost:8000/items/${itemId}`);
+      if (itemResponse.ok) {
+        const itemData = await itemResponse.json();
+        setItem(itemData);
+      } else {
+        throw new Error('Item not found');
+      }
+
+      // Fetch messages
+      const messagesResponse = await fetch(`http://localhost:8000/messages?item_id=${itemId}`);
+      if (messagesResponse.ok) {
+        const messagesData = await messagesResponse.json();
+        setMessages(messagesData);
+      }
+
       setError(null);
     } catch (err) {
-      setError('アイテムまたはメッセージの取得に失敗しました');
+      setError('データの取得に失敗しました');
       console.error('Error fetching data:', err);
     } finally {
       setLoading(false);
@@ -83,16 +55,26 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
 
     setPostLoading(true);
     try {
-      await createMessage({
-        item_id: itemId,
-        message: message.trim(),
-        user_name: userName.trim() || '匿名',
-        msg_type: messageType
+      const response = await fetch('http://localhost:8000/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          item_id: itemId,
+          message: message.trim(),
+          user_name: userName.trim() || '匿名',
+          msg_type: 'general'
+        })
       });
-      
-      setMessage('');
-      setUserName('');
-      await fetchData(); // Refresh messages
+
+      if (response.ok) {
+        setMessage('');
+        setUserName('');
+        await fetchData(); // Refresh messages
+      } else {
+        throw new Error('Failed to post message');
+      }
     } catch (err) {
       setError('メッセージの投稿に失敗しました');
       console.error('Error posting message:', err);
@@ -168,23 +150,6 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                種類
-              </label>
-              <select
-                value={messageType}
-                onChange={(e) => setMessageType(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="general">一般</option>
-                <option value="issue">問題</option>
-                <option value="question">質問</option>
-                <option value="fixed">修理済み</option>
-                <option value="status_update">ステータス更新</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
                 メッセージ
               </label>
               <textarea
@@ -201,14 +166,7 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
               disabled={!message.trim() || postLoading}
               className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {postLoading ? (
-                <span className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  投稿中...
-                </span>
-              ) : (
-                '📮 メッセージ投稿'
-              )}
+              {postLoading ? '投稿中...' : '📮 メッセージ投稿'}
             </button>
           </form>
         </div>
@@ -224,23 +182,18 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
               <p className="text-gray-500 text-sm">最初の投稿者になりましょう！</p>
             </div>
           ) : (
-            messages.map((msg, index) => {
-              const emoji = MESSAGE_TYPE_EMOJIS[msg.msg_type as keyof typeof MESSAGE_TYPE_EMOJIS] || '💬';
-              const colorClass = MESSAGE_TYPE_COLORS[msg.msg_type as keyof typeof MESSAGE_TYPE_COLORS] || 'bg-gray-50 border-gray-200';
-              
-              return (
-                <div key={index} className={`bg-white rounded-lg shadow-sm border p-4 ${colorClass}`}>
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-lg">{emoji}</span>
-                      <span className="font-medium text-gray-900">{msg.user_name}</span>
-                    </div>
-                    <span className="text-xs text-gray-500">{msg.formatted_time}</span>
+            messages.map((msg, index) => (
+              <div key={index} className="bg-white rounded-lg shadow-sm border p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-lg">💬</span>
+                    <span className="font-medium text-gray-900">{msg.user_name}</span>
                   </div>
-                  <p className="text-gray-700 leading-relaxed">{msg.message}</p>
+                  <span className="text-xs text-gray-500">{msg.formatted_time}</span>
                 </div>
-              );
-            })
+                <p className="text-gray-700 leading-relaxed">{msg.message}</p>
+              </div>
+            ))
           )}
         </div>
 
@@ -256,4 +209,4 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
   );
 };
 
-export default MemoBoard;
+export default SimpleMemoBoard;
