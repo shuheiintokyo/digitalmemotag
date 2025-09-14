@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { QrCode, Plus, MessageSquare, LogOut, Edit } from 'lucide-react';
+import { QrCode, Plus, MessageSquare, LogOut, Edit, Download } from 'lucide-react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
+import QRCode from 'qrcode';
 
 export default function DigitalMemoTag() {
   const router = useRouter();
@@ -18,6 +19,7 @@ export default function DigitalMemoTag() {
     red: '問題が発生しました。'
   });
   const [showSettings, setShowSettings] = useState(false);
+  const [qrCodes, setQrCodes] = useState({});
 
   // Status color mapping
   const statusColors = {
@@ -25,6 +27,36 @@ export default function DigitalMemoTag() {
     'Completed': '#10b981', // green  
     'Delayed': '#f59e0b', // yellow
     'Problem': '#ef4444' // red
+  };
+
+  // Generate QR code for an item
+  const generateQRCode = async (itemId) => {
+    try {
+      const url = `${window.location.origin}?item=${itemId}`;
+      const qrCodeDataURL = await QRCode.toDataURL(url, {
+        width: 256,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      });
+      setQrCodes(prev => ({ ...prev, [itemId]: qrCodeDataURL }));
+      return qrCodeDataURL;
+    } catch (error) {
+      console.error('Error generating QR code:', error);
+    }
+  };
+
+  // Download QR code as image
+  const downloadQRCode = (itemId, itemName) => {
+    const qrCodeDataURL = qrCodes[itemId];
+    if (qrCodeDataURL) {
+      const link = document.createElement('a');
+      link.download = `QR_${itemId}_${itemName}.png`;
+      link.href = qrCodeDataURL;
+      link.click();
+    }
   };
 
   // Check for item ID in URL on load
@@ -80,6 +112,13 @@ export default function DigitalMemoTag() {
       
       if (error) throw error;
       setItems(data || []);
+      
+      // Generate QR codes for all items
+      if (data) {
+        data.forEach(item => {
+          generateQRCode(item.item_id);
+        });
+      }
     } catch (error) {
       console.error('Error loading items:', error);
     }
@@ -116,6 +155,8 @@ export default function DigitalMemoTag() {
       
       if (error) throw error;
       loadItems();
+      // Generate QR code for new item
+      generateQRCode(itemId);
       return itemId;
     } catch (error) {
       console.error('Error adding item:', error);
@@ -224,11 +265,48 @@ export default function DigitalMemoTag() {
     );
   };
 
+  // QR Code Modal Component
+  const QRCodeModal = ({ item, onClose }) => {
+    const qrCodeUrl = qrCodes[item.item_id];
+    
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
+          <div className="text-center">
+            <h3 className="text-lg font-bold mb-4">{item.name}</h3>
+            <p className="text-sm text-gray-600 mb-4">ID: {item.item_id}</p>
+            {qrCodeUrl && (
+              <div className="mb-4">
+                <img src={qrCodeUrl} alt="QR Code" className="mx-auto border rounded" />
+              </div>
+            )}
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={() => downloadQRCode(item.item_id, item.name)}
+                className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 flex items-center gap-2"
+              >
+                <Download size={16} />
+                ダウンロード
+              </button>
+              <button
+                onClick={onClose}
+                className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Dashboard Component
   const Dashboard = () => {
     const [showAddForm, setShowAddForm] = useState(false);
     const [newItemName, setNewItemName] = useState('');
     const [newItemLocation, setNewItemLocation] = useState('');
+    const [selectedQRItem, setSelectedQRItem] = useState(null);
 
     const handleAddItem = async () => {
       if (newItemName.trim()) {
@@ -379,10 +457,13 @@ export default function DigitalMemoTag() {
                         {item.location}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600">
-                        <span className="flex items-center gap-1">
+                        <button
+                          onClick={() => setSelectedQRItem(item)}
+                          className="flex items-center gap-1 hover:text-blue-800"
+                        >
                           <QrCode size={16} />
-                          QRリンク
-                        </span>
+                          QR表示
+                        </button>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <button
@@ -404,6 +485,14 @@ export default function DigitalMemoTag() {
             </div>
           </div>
         </div>
+
+        {/* QR Code Modal */}
+        {selectedQRItem && (
+          <QRCodeModal 
+            item={selectedQRItem} 
+            onClose={() => setSelectedQRItem(null)} 
+          />
+        )}
       </div>
     );
   };
