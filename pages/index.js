@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { QrCode, Plus, MessageSquare, LogOut, Edit, Download, Trash2 } from 'lucide-react';
+import { QrCode, Plus, MessageSquare, LogOut, Edit, Download, Trash2, Bell } from 'lucide-react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import QRCode from 'qrcode';
@@ -21,6 +21,8 @@ export default function DigitalMemoTag() {
   const [showSettings, setShowSettings] = useState(false);
   const [qrCodes, setQrCodes] = useState({});
   const [itemToDelete, setItemToDelete] = useState(null);
+  const [messageToDelete, setMessageToDelete] = useState(null);
+  const [lastViewedTimes, setLastViewedTimes] = useState({});
 
   // Status color mapping
   const statusColors = {
@@ -88,7 +90,7 @@ export default function DigitalMemoTag() {
     }
   };
 
-  // Generate item ID in format YYYY/MM/DD-XX
+  // Generate item ID in format YYYYMMDD-XX
   const generateItemId = () => {
     const now = new Date();
     const year = now.getFullYear();
@@ -97,26 +99,75 @@ export default function DigitalMemoTag() {
     
     // Get today's items to determine the next sequence number
     const todayPrefix = `${year}${month}${day}`;
-    const todayItems = items.filter(item => item.item_id.replace(/\//g, '').startsWith(todayPrefix));
+    const todayItems = items.filter(item => item.item_id.startsWith(todayPrefix));
     const nextSequence = String(todayItems.length + 1).padStart(2, '0');
     
-    return `${year}/${month}/${day}-${nextSequence}`;
+    return `${todayPrefix}-${nextSequence}`;
   };
+
+  // Check if item has new messages
+  const hasNewMessages = (itemId, latestMessageTime) => {
+    const lastViewed = lastViewedTimes[itemId];
+    if (!lastViewed || !latestMessageTime) return false;
+    return new Date(latestMessageTime) > new Date(lastViewed);
+  };
+
+  // Mark messages as viewed for an item
+  const markMessagesAsViewed = (itemId) => {
+    setLastViewedTimes(prev => ({
+      ...prev,
+      [itemId]: new Date().toISOString()
+    }));
+    // Save to localStorage for persistence
+    const updated = { ...lastViewedTimes, [itemId]: new Date().toISOString() };
+    localStorage.setItem('lastViewedTimes', JSON.stringify(updated));
+  };
+
+  // Load last viewed times from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('lastViewedTimes');
+    if (saved) {
+      setLastViewedTimes(JSON.parse(saved));
+    }
+  }, []);
 
   // Load items from database
   const loadItems = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: itemsData, error: itemsError } = await supabase
         .from('items')
         .select('*')
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
-      setItems(data || []);
+      if (itemsError) throw itemsError;
+      
+      // Get latest message time for each item
+      const { data: messagesData, error: messagesError } = await supabase
+        .from('messages')
+        .select('item_id, created_at')
+        .order('created_at', { ascending: false });
+      
+      if (messagesError) throw messagesError;
+      
+      // Create a map of latest message times
+      const latestMessageTimes = {};
+      messagesData.forEach(msg => {
+        if (!latestMessageTimes[msg.item_id]) {
+          latestMessageTimes[msg.item_id] = msg.created_at;
+        }
+      });
+      
+      // Add latest message time to items
+      const itemsWithMessageTimes = (itemsData || []).map(item => ({
+        ...item,
+        latest_message_time: latestMessageTimes[item.item_id]
+      }));
+      
+      setItems(itemsWithMessageTimes);
       
       // Generate QR codes for all items
-      if (data) {
-        data.forEach(item => {
+      if (itemsWithMessageTimes) {
+        itemsWithMessageTimes.forEach(item => {
           generateQRCode(item.item_id);
         });
       }
@@ -187,6 +238,29 @@ export default function DigitalMemoTag() {
     } catch (error) {
       console.error('Error deleting item:', error);
       alert('削除中にエラーが発生しました');
+    }
+  };
+
+  // Delete individual message
+  const deleteMessage = async (messageId) => {
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .eq('id', messageId);
+      
+      if (error) throw error;
+      
+      // Reload messages for current item
+      if (selectedItem) {
+        loadMessages(selectedItem.item_id);
+      }
+      // Reload items to update latest message times
+      loadItems();
+      setMessageToDelete(null);
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      alert('メッセージの削除中にエラーが発生しました');
     }
   };
 
@@ -369,6 +443,42 @@ export default function DigitalMemoTag() {
     );
   };
 
+  // Message Delete Confirmation Modal Component
+  const MessageDeleteConfirmModal = ({ message, onConfirm, onCancel }) => {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
+          <div className="text-center">
+            <h3 className="text-lg font-bold mb-4">メッセージ削除確認</h3>
+            <p className="text-sm text-gray-600 mb-2">以下のメッセージを削除してもよろしいですか？</p>
+            <div className="text-sm bg-gray-50 p-3 rounded mb-4 text-left">
+              <p><strong>投稿者:</strong> {message.user_name}</p>
+              <p><strong>内容:</strong> {message.message}</p>
+              <p><strong>投稿日時:</strong> {new Date(message.created_at).toLocaleString('ja-JP')}</p>
+            </div>
+            <p className="text-xs text-red-600 mb-6">
+              ※ この操作は取り消せません。
+            </p>
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={onConfirm}
+                className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
+              >
+                削除する
+              </button>
+              <button
+                onClick={onCancel}
+                className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Dashboard Component
   const Dashboard = () => {
     const [showAddForm, setShowAddForm] = useState(false);
@@ -383,6 +493,13 @@ export default function DigitalMemoTag() {
         setNewItemLocation('');
         setShowAddForm(false);
       }
+    };
+
+    const handleViewMessages = (item) => {
+      setSelectedItem(item);
+      loadMessages(item.item_id);
+      markMessagesAsViewed(item.item_id);
+      setCurrentPage('messageboard');
     };
 
     return (
@@ -535,17 +652,21 @@ export default function DigitalMemoTag() {
                         </button>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button
-                          onClick={() => {
-                            setSelectedItem(item);
-                            loadMessages(item.item_id);
-                            setCurrentPage('messageboard');
-                          }}
-                          className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
-                        >
-                          <MessageSquare size={16} />
-                          メッセージ
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleViewMessages(item)}
+                            className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
+                          >
+                            <MessageSquare size={16} />
+                            メッセージ
+                          </button>
+                          {hasNewMessages(item.item_id, item.latest_message_time) && (
+                            <div className="flex items-center gap-1">
+                              <Bell size={12} className="text-red-500" />
+                              <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">NEW!</span>
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <button
@@ -696,9 +817,20 @@ export default function DigitalMemoTag() {
                   <div key={message.id} className="p-4 border-b last:border-b-0">
                     <div className="flex justify-between items-start mb-2">
                       <span className="font-medium text-sm">{message.user_name}</span>
-                      <span className="text-xs text-gray-500">
-                        {new Date(message.created_at).toLocaleString('ja-JP')}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">
+                          {new Date(message.created_at).toLocaleString('ja-JP')}
+                        </span>
+                        {(isAdmin || message.user_name === '匿名') && (
+                          <button
+                            onClick={() => setMessageToDelete(message)}
+                            className="text-red-500 hover:text-red-700 p-1"
+                            title="メッセージを削除"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <p className="text-gray-800">{message.message}</p>
                     {message.msg_type !== 'general' && (
@@ -719,6 +851,15 @@ export default function DigitalMemoTag() {
             </div>
           </div>
         </div>
+
+        {/* Message Delete Confirmation Modal */}
+        {messageToDelete && (
+          <MessageDeleteConfirmModal
+            message={messageToDelete}
+            onConfirm={() => deleteMessage(messageToDelete.id)}
+            onCancel={() => setMessageToDelete(null)}
+          />
+        )}
       </div>
     );
   };
@@ -759,7 +900,7 @@ export default function DigitalMemoTag() {
                 type="text"
                 value={itemId}
                 onChange={(e) => setItemId(e.target.value)}
-                placeholder="製品IDを入力"
+                placeholder="製品IDを入力 (例: 20250101-01)"
                 className="w-full px-3 py-2 border rounded-lg mb-4"
               />
               <button
