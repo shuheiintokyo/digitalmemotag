@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { QrCode, Plus, MessageSquare, LogOut, Edit, Download } from 'lucide-react';
+import { QrCode, Plus, MessageSquare, LogOut, Edit, Download, Trash2 } from 'lucide-react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import QRCode from 'qrcode';
@@ -20,6 +20,7 @@ export default function DigitalMemoTag() {
   });
   const [showSettings, setShowSettings] = useState(false);
   const [qrCodes, setQrCodes] = useState({});
+  const [itemToDelete, setItemToDelete] = useState(null);
 
   // Status color mapping
   const statusColors = {
@@ -163,6 +164,32 @@ export default function DigitalMemoTag() {
     }
   };
 
+  // Delete item and its messages
+  const deleteItem = async (itemId) => {
+    try {
+      // Delete all messages for this item first
+      await supabase
+        .from('messages')
+        .delete()
+        .eq('item_id', itemId);
+      
+      // Then delete the item
+      const { error } = await supabase
+        .from('items')
+        .delete()
+        .eq('item_id', itemId);
+      
+      if (error) throw error;
+      
+      // Reload items
+      loadItems();
+      setItemToDelete(null);
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      alert('削除中にエラーが発生しました');
+    }
+  };
+
   // Add message
   const addMessage = async (itemId, message, userName = '匿名', msgType = 'general') => {
     try {
@@ -270,8 +297,7 @@ export default function DigitalMemoTag() {
     const qrCodeUrl = qrCodes[item.item_id];
     
     // Get the actual URL that the QR code contains
-    let baseUrl = qrBaseUrl || window.location.origin;
-    const actualUrl = `${baseUrl}?item=${item.item_id}`;
+    const actualUrl = `${window.location.origin}?item=${item.item_id}`;
     
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -301,6 +327,40 @@ export default function DigitalMemoTag() {
                 className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
               >
                 閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Delete Confirmation Modal Component
+  const DeleteConfirmModal = ({ item, onConfirm, onCancel }) => {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
+          <div className="text-center">
+            <h3 className="text-lg font-bold mb-4">削除確認</h3>
+            <p className="text-sm text-gray-600 mb-2">以下の製品を削除してもよろしいですか？</p>
+            <p className="text-sm font-medium mb-4">
+              {item.name} (ID: {item.item_id})
+            </p>
+            <p className="text-xs text-red-600 mb-6">
+              ※ この操作は取り消せません。すべてのメッセージも削除されます。
+            </p>
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={onConfirm}
+                className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
+              >
+                削除する
+              </button>
+              <button
+                onClick={onCancel}
+                className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+              >
+                キャンセル
               </button>
             </div>
           </div>
@@ -444,6 +504,7 @@ export default function DigitalMemoTag() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">保管場所</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">QRコード</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">削除</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -486,6 +547,15 @@ export default function DigitalMemoTag() {
                           メッセージ
                         </button>
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button
+                          onClick={() => setItemToDelete(item)}
+                          className="text-red-600 hover:text-red-900 flex items-center gap-1"
+                        >
+                          <Trash2 size={16} />
+                          削除
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -499,6 +569,15 @@ export default function DigitalMemoTag() {
           <QRCodeModal 
             item={selectedQRItem} 
             onClose={() => setSelectedQRItem(null)} 
+          />
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {itemToDelete && (
+          <DeleteConfirmModal
+            item={itemToDelete}
+            onConfirm={() => deleteItem(itemToDelete.item_id)}
+            onCancel={() => setItemToDelete(null)}
           />
         )}
       </div>
