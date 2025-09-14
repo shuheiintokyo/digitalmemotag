@@ -1,0 +1,637 @@
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { QrCode, Plus, MessageSquare, LogOut, Edit } from 'lucide-react';
+import Head from 'next/head';
+import { useRouter } from 'next/router';
+
+export default function DigitalMemoTag() {
+  const router = useRouter();
+  const [currentPage, setCurrentPage] = useState('login');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [items, setItems] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [quickButtons, setQuickButtons] = useState({
+    blue: '作業を開始しました',
+    green: '作業を完了しました', 
+    yellow: '作業に遅れが生じています',
+    red: '問題が発生しました。'
+  });
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Status color mapping
+  const statusColors = {
+    'Working': '#3b82f6', // blue
+    'Completed': '#10b981', // green  
+    'Delayed': '#f59e0b', // yellow
+    'Problem': '#ef4444' // red
+  };
+
+  // Check for item ID in URL on load
+  useEffect(() => {
+    if (router.query.item) {
+      handleDirectAccess(router.query.item);
+    }
+  }, [router.query.item]);
+
+  // Handle direct access via QR code
+  const handleDirectAccess = async (itemId) => {
+    try {
+      const { data, error } = await supabase
+        .from('items')
+        .select('*')
+        .eq('item_id', itemId)
+        .single();
+      
+      if (error) throw error;
+      if (data) {
+        setSelectedItem(data);
+        await loadMessages(data.item_id);
+        setCurrentPage('messageboard');
+      }
+    } catch (error) {
+      console.error('Item not found:', error);
+      setCurrentPage('mobile');
+    }
+  };
+
+  // Generate item ID in format YYYY/MM/DD-XX
+  const generateItemId = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    
+    // Get today's items to determine the next sequence number
+    const todayPrefix = `${year}${month}${day}`;
+    const todayItems = items.filter(item => item.item_id.replace(/\//g, '').startsWith(todayPrefix));
+    const nextSequence = String(todayItems.length + 1).padStart(2, '0');
+    
+    return `${year}/${month}/${day}-${nextSequence}`;
+  };
+
+  // Load items from database
+  const loadItems = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('items')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setItems(data || []);
+    } catch (error) {
+      console.error('Error loading items:', error);
+    }
+  };
+
+  // Load messages for specific item
+  const loadMessages = async (itemId) => {
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('item_id', itemId)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setMessages(data || []);
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    }
+  };
+
+  // Add new item
+  const addItem = async (name, location) => {
+    try {
+      const itemId = generateItemId();
+      const { data, error } = await supabase
+        .from('items')
+        .insert([{
+          item_id: itemId,
+          name: name,
+          location: location || '',
+          status: 'Working'
+        }]);
+      
+      if (error) throw error;
+      loadItems();
+      return itemId;
+    } catch (error) {
+      console.error('Error adding item:', error);
+    }
+  };
+
+  // Add message
+  const addMessage = async (itemId, message, userName = '匿名', msgType = 'general') => {
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .insert([{
+          item_id: itemId,
+          message: message,
+          user_name: userName,
+          msg_type: msgType
+        }]);
+      
+      if (error) throw error;
+      
+      // Update item status based on message type
+      if (msgType !== 'general') {
+        let status = 'Working';
+        if (msgType === 'green') status = 'Completed';
+        else if (msgType === 'yellow') status = 'Delayed';
+        else if (msgType === 'red') status = 'Problem';
+        
+        await supabase
+          .from('items')
+          .update({ status, updated_at: new Date() })
+          .eq('item_id', itemId);
+      }
+      
+      if (selectedItem && selectedItem.item_id === itemId) {
+        loadMessages(itemId);
+      }
+      loadItems();
+    } catch (error) {
+      console.error('Error adding message:', error);
+    }
+  };
+
+  // Login Component
+  const LoginPage = () => {
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+
+    const handleLogin = () => {
+      if (password === '1234') {
+        setIsAdmin(true);
+        setCurrentPage('dashboard');
+        setError('');
+      } else {
+        setError('パスコードが間違っています');
+        setUsername('');
+        setPassword('');
+      }
+    };
+
+    const handleKeyPress = (e) => {
+      if (e.key === 'Enter') {
+        handleLogin();
+      }
+    };
+
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+          <h1 className="text-2xl font-bold text-center mb-6">管理者ログイン</h1>
+          <div>
+            <div className="mb-4">
+              <label className="block text-gray-700 text-sm font-bold mb-2">
+                ユーザー名
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                onKeyPress={handleKeyPress}
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div className="mb-6">
+              <label className="block text-gray-700 text-sm font-bold mb-2">
+                パスコード
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyPress={handleKeyPress}
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+            <button
+              onClick={handleLogin}
+              className="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600"
+            >
+              ログイン
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Dashboard Component
+  const Dashboard = () => {
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [newItemName, setNewItemName] = useState('');
+    const [newItemLocation, setNewItemLocation] = useState('');
+
+    const handleAddItem = async () => {
+      if (newItemName.trim()) {
+        await addItem(newItemName.trim(), newItemLocation.trim());
+        setNewItemName('');
+        setNewItemLocation('');
+        setShowAddForm(false);
+      }
+    };
+
+    return (
+      <div className="min-h-screen bg-gray-100">
+        <div className="bg-white shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 className="text-2xl font-bold">ダッシュボード</h1>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center gap-2"
+              >
+                <Edit size={16} />
+                設定
+              </button>
+              <button
+                onClick={() => {
+                  setIsAdmin(false);
+                  setCurrentPage('login');
+                }}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center gap-2"
+              >
+                <LogOut size={16} />
+                ログアウト
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto p-6">
+          {/* Quick Button Settings */}
+          {showSettings && (
+            <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+              <h3 className="text-lg font-bold mb-4">クイックボタン設定</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(quickButtons).map(([color, message]) => (
+                  <div key={color}>
+                    <label className="block text-sm font-medium mb-2">
+                      {color === 'blue' && '青ボタン'}
+                      {color === 'green' && '緑ボタン'}
+                      {color === 'yellow' && '黄ボタン'}
+                      {color === 'red' && '赤ボタン'}
+                    </label>
+                    <input
+                      type="text"
+                      value={message}
+                      onChange={(e) => setQuickButtons({...quickButtons, [color]: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Add Item Button */}
+          <div className="mb-6">
+            <button
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 flex items-center gap-2"
+            >
+              <Plus size={16} />
+              新しい製品タグを作成
+            </button>
+          </div>
+
+          {/* Add Item Form */}
+          {showAddForm && (
+            <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+              <h3 className="text-lg font-bold mb-4">新製品追加</h3>
+              <div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">製品名 *</label>
+                    <input
+                      type="text"
+                      value={newItemName}
+                      onChange={(e) => setNewItemName(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">保管場所</label>
+                    <input
+                      type="text"
+                      value={newItemLocation}
+                      onChange={(e) => setNewItemLocation(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <button
+                    onClick={handleAddItem}
+                    className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600"
+                  >
+                    追加
+                  </button>
+                  <button
+                    onClick={() => setShowAddForm(false)}
+                    className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Items Table */}
+          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ステータス</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">製品名</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">保管場所</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">QRコード</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {items.map((item) => (
+                    <tr key={item.id}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div 
+                          className="w-4 h-4 rounded-full"
+                          style={{ backgroundColor: statusColors[item.status] || statusColors['Working'] }}
+                        />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {item.item_id}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {item.name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {item.location}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600">
+                        <a 
+                          href={`${window.location.origin}?item=${item.item_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 hover:underline"
+                        >
+                          <QrCode size={16} />
+                          QRリンク
+                        </a>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button
+                          onClick={() => {
+                            setSelectedItem(item);
+                            loadMessages(item.item_id);
+                            setCurrentPage('messageboard');
+                          }}
+                          className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
+                        >
+                          <MessageSquare size={16} />
+                          メッセージ
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Message Board Component
+  const MessageBoard = () => {
+    const [newMessage, setNewMessage] = useState('');
+    const [userName, setUserName] = useState('');
+
+    const handleSendMessage = async () => {
+      if (newMessage.trim()) {
+        await addMessage(selectedItem.item_id, newMessage.trim(), userName.trim() || '匿名');
+        setNewMessage('');
+        setUserName('');
+      }
+    };
+
+    const handleQuickButton = async (color) => {
+      const message = quickButtons[color];
+      await addMessage(selectedItem.item_id, message, isAdmin ? '管理者' : '匿名', color);
+    };
+
+    return (
+      <div className="min-h-screen bg-gray-100">
+        <div className="bg-white shadow-sm">
+          <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div>
+              <h1 className="text-xl font-bold">{selectedItem?.name}</h1>
+              <p className="text-sm text-gray-600">ID: {selectedItem?.item_id}</p>
+            </div>
+            <button
+              onClick={() => setCurrentPage(isAdmin ? 'dashboard' : 'mobile')}
+              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+            >
+              戻る
+            </button>
+          </div>
+        </div>
+
+        <div className="max-w-4xl mx-auto p-4">
+          {/* Quick Action Buttons */}
+          <div className="bg-white p-4 rounded-lg shadow-md mb-4">
+            <h3 className="text-lg font-bold mb-3">クイックアクション</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <button
+                onClick={() => handleQuickButton('blue')}
+                className="px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
+              >
+                {quickButtons.blue}
+              </button>
+              <button
+                onClick={() => handleQuickButton('green')}
+                className="px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm"
+              >
+                {quickButtons.green}
+              </button>
+              <button
+                onClick={() => handleQuickButton('yellow')}
+                className="px-4 py-3 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 text-sm"
+              >
+                {quickButtons.yellow}
+              </button>
+              <button
+                onClick={() => handleQuickButton('red')}
+                className="px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm"
+              >
+                {quickButtons.red}
+              </button>
+            </div>
+          </div>
+
+          {/* Message Form */}
+          <div className="bg-white p-4 rounded-lg shadow-md mb-4">
+            <div>
+              <div className="mb-3">
+                <label className="block text-sm font-medium mb-1">ユーザー名</label>
+                <input
+                  type="text"
+                  value={userName}
+                  onChange={(e) => setUserName(e.target.value)}
+                  placeholder="匿名"
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+              <div className="mb-3">
+                <label className="block text-sm font-medium mb-1">メッセージ</label>
+                <textarea
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg h-20"
+                />
+              </div>
+              <button
+                onClick={handleSendMessage}
+                className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+              >
+                送信
+              </button>
+            </div>
+          </div>
+
+          {/* Messages List */}
+          <div className="bg-white rounded-lg shadow-md">
+            <div className="p-4 border-b">
+              <h3 className="text-lg font-bold">メッセージ履歴</h3>
+            </div>
+            <div className="max-h-96 overflow-y-auto">
+              {messages.length === 0 ? (
+                <div className="p-4 text-center text-gray-500">
+                  メッセージがありません
+                </div>
+              ) : (
+                messages.map((message) => (
+                  <div key={message.id} className="p-4 border-b last:border-b-0">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="font-medium text-sm">{message.user_name}</span>
+                      <span className="text-xs text-gray-500">
+                        {new Date(message.created_at).toLocaleString('ja-JP')}
+                      </span>
+                    </div>
+                    <p className="text-gray-800">{message.message}</p>
+                    {message.msg_type !== 'general' && (
+                      <div className="mt-2">
+                        <span className={`inline-block px-2 py-1 rounded text-xs text-white ${
+                          message.msg_type === 'blue' ? 'bg-blue-500' :
+                          message.msg_type === 'green' ? 'bg-green-500' :
+                          message.msg_type === 'yellow' ? 'bg-yellow-500' :
+                          'bg-red-500'
+                        }`}>
+                          ステータス更新
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Mobile Access Component
+  const MobileAccess = () => {
+    const [itemId, setItemId] = useState('');
+
+    const handleItemIdSubmit = async () => {
+      if (itemId.trim()) {
+        try {
+          const { data, error } = await supabase
+            .from('items')
+            .select('*')
+            .eq('item_id', itemId.trim())
+            .single();
+          
+          if (error) throw error;
+          if (data) {
+            setSelectedItem(data);
+            loadMessages(data.item_id);
+            setCurrentPage('messageboard');
+          }
+        } catch (error) {
+          alert('製品IDが見つかりません');
+        }
+      }
+    };
+
+    return (
+      <div className="min-h-screen bg-gray-100 p-4">
+        <div className="max-w-md mx-auto">
+          <div className="bg-white p-6 rounded-lg shadow-md text-center">
+            <QrCode size={64} className="mx-auto mb-4 text-blue-500" />
+            <h1 className="text-xl font-bold mb-4">製品アクセス</h1>
+            <div>
+              <input
+                type="text"
+                value={itemId}
+                onChange={(e) => setItemId(e.target.value)}
+                placeholder="製品IDを入力"
+                className="w-full px-3 py-2 border rounded-lg mb-4"
+              />
+              <button
+                onClick={handleItemIdSubmit}
+                className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600"
+              >
+                アクセス
+              </button>
+            </div>
+            <div className="mt-4">
+              <button
+                onClick={() => setCurrentPage('login')}
+                className="text-blue-600 hover:text-blue-800 text-sm"
+              >
+                管理者ログイン
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Load items on component mount
+  useEffect(() => {
+    loadItems();
+  }, []);
+
+  // Render appropriate page
+  return (
+    <>
+      <Head>
+        <title>DigitalMemoTag - Factory Management System</title>
+        <meta name="description" content="Factory product tracking and messaging system" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
+      
+      {!isAdmin && currentPage === 'login' && <LoginPage />}
+      {currentPage === 'dashboard' && <Dashboard />}
+      {currentPage === 'messageboard' && <MessageBoard />}
+      {currentPage === 'mobile' && <MobileAccess />}
+      {!currentPage && <MobileAccess />}
+    </>
+  );
+}
