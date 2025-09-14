@@ -379,15 +379,10 @@ export default function DigitalMemoTag() {
                         {item.location}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600">
-                        <a 
-                          href={`${window.location.origin}?item=${item.item_id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 hover:underline"
-                        >
+                        <span className="flex items-center gap-1">
                           <QrCode size={16} />
                           QRリンク
-                        </a>
+                        </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <button
