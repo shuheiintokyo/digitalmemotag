@@ -370,9 +370,6 @@ export default function DigitalMemoTag() {
   const QRCodeModal = ({ item, onClose }) => {
     const qrCodeUrl = qrCodes[item.item_id];
     
-    // Get the actual URL that the QR code contains
-    const actualUrl = `${window.location.origin}?item=${item.item_id}`;
-    
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
@@ -384,10 +381,6 @@ export default function DigitalMemoTag() {
                 <img src={qrCodeUrl} alt="QR Code" className="mx-auto border rounded" />
               </div>
             )}
-            <div className="mb-4 p-2 bg-gray-50 rounded text-xs">
-              <strong>QRコードのURL:</strong><br/>
-              <span className="break-all">{actualUrl}</span>
-            </div>
             <div className="flex gap-2 justify-center">
               <button
                 onClick={() => downloadQRCode(item.item_id, item.name)}
