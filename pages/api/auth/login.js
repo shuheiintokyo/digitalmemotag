@@ -7,8 +7,16 @@ export default async function handler(req, res) {
 
   const { username, password } = req.body;
 
-  // Simple authentication (you can enhance this)
-  if (password === '1234') {
+  // Get admin password from environment variable
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  
+  if (!adminPassword) {
+    console.error('ADMIN_PASSWORD environment variable not set');
+    return res.status(500).json({ message: 'Server configuration error' });
+  }
+
+  // Secure authentication check
+  if (password === adminPassword) {
     try {
       // Create session with user data
       const sessionToken = await createSession('admin', {
