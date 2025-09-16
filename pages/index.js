@@ -4,11 +4,14 @@ import { QrCode, Plus, MessageSquare, LogOut, Edit, Download, Trash2, Bell } fro
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import QRCode from 'qrcode';
+import { useAuth } from '../hooks/useAuth';
 
 export default function DigitalMemoTag() {
   const router = useRouter();
-  const [currentPage, setCurrentPage] = useState('login');
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { isAdmin, user, loading, login, logout } = useAuth();
+  
+  // All state hooks must be called in the same order every time
+  const [currentPage, setCurrentPage] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
   const [items, setItems] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -31,6 +34,36 @@ export default function DigitalMemoTag() {
     'Delayed': '#f59e0b', // yellow
     'Problem': '#ef4444' // red
   };
+
+  // All useEffect hooks must be called in the same order every time
+  
+  // Load last viewed times from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('lastViewedTimes');
+    if (saved) {
+      setLastViewedTimes(JSON.parse(saved));
+    }
+  }, []);
+
+  // Load items when admin is authenticated
+  useEffect(() => {
+    if (isAdmin) {
+      loadItems();
+    }
+  }, [isAdmin]);
+
+  // Handle initial page routing
+  useEffect(() => {
+    if (loading) return; // Wait for auth to load
+    
+    if (router.query.item) {
+      handleDirectAccess(router.query.item);
+    } else if (isAdmin) {
+      setCurrentPage('dashboard');
+    } else {
+      setCurrentPage('login');
+    }
+  }, [router.query.item, isAdmin, loading]);
 
   // Generate QR code for an item
   const generateQRCode = async (itemId) => {
@@ -61,13 +94,6 @@ export default function DigitalMemoTag() {
       link.click();
     }
   };
-
-  // Check for item ID in URL on load
-  useEffect(() => {
-    if (router.query.item) {
-      handleDirectAccess(router.query.item);
-    }
-  }, [router.query.item]);
 
   // Handle direct access via QR code
   const handleDirectAccess = async (itemId) => {
@@ -123,14 +149,6 @@ export default function DigitalMemoTag() {
     localStorage.setItem('lastViewedTimes', JSON.stringify(updated));
   };
 
-  // Load last viewed times from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('lastViewedTimes');
-    if (saved) {
-      setLastViewedTimes(JSON.parse(saved));
-    }
-  }, []);
-
   // Load items from database
   const loadItems = async () => {
     try {
@@ -151,11 +169,13 @@ export default function DigitalMemoTag() {
       
       // Create a map of latest message times
       const latestMessageTimes = {};
-      messagesData.forEach(msg => {
-        if (!latestMessageTimes[msg.item_id]) {
-          latestMessageTimes[msg.item_id] = msg.created_at;
-        }
-      });
+      if (messagesData) {
+        messagesData.forEach(msg => {
+          if (!latestMessageTimes[msg.item_id]) {
+            latestMessageTimes[msg.item_id] = msg.created_at;
+          }
+        });
+      }
       
       // Add latest message time to items
       const itemsWithMessageTimes = (itemsData || []).map(item => ({
@@ -300,26 +320,50 @@ export default function DigitalMemoTag() {
     }
   };
 
-  // Login Component
+  // Show loading spinner while auth is loading
+  if (loading) {
+    return (
+      <>
+        <Head>
+          <title>DigitalMemoTag - Loading...</title>
+          <meta name="description" content="Factory product tracking and messaging system" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <link rel="icon" href="/favicon.ico" />
+        </Head>
+        <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-gray-600">読み込み中...</p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Login Component - Updated to use auth hook
   const LoginPage = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
 
-    const handleLogin = () => {
-      if (password === '1234') {
-        setIsAdmin(true);
-        setCurrentPage('dashboard');
-        setError('');
-      } else {
-        setError('パスコードが間違っています');
+    const handleLogin = async () => {
+      setIsLoading(true);
+      setError('');
+      
+      const result = await login(username, password);
+      
+      if (!result.success) {
+        setError(result.message || 'パスコードが間違っています');
         setUsername('');
         setPassword('');
       }
+      
+      setIsLoading(false);
     };
 
     const handleKeyPress = (e) => {
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' && !isLoading) {
         handleLogin();
       }
     };
@@ -339,6 +383,7 @@ export default function DigitalMemoTag() {
                 onChange={(e) => setUsername(e.target.value)}
                 onKeyPress={handleKeyPress}
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+                disabled={isLoading}
               />
             </div>
             <div className="mb-6">
@@ -351,14 +396,16 @@ export default function DigitalMemoTag() {
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyPress={handleKeyPress}
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+                disabled={isLoading}
               />
             </div>
             {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
             <button
               onClick={handleLogin}
-              className="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600"
+              disabled={isLoading}
+              className="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              ログイン
+              {isLoading ? 'ログイン中...' : 'ログイン'}
             </button>
           </div>
         </div>
@@ -472,7 +519,7 @@ export default function DigitalMemoTag() {
     );
   };
 
-  // Dashboard Component
+  // Dashboard Component - Updated with improved logout
   const Dashboard = () => {
     const [showAddForm, setShowAddForm] = useState(false);
     const [newItemName, setNewItemName] = useState('');
@@ -495,11 +542,21 @@ export default function DigitalMemoTag() {
       setCurrentPage('messageboard');
     };
 
+    const handleLogout = async () => {
+      await logout();
+      setCurrentPage('login');
+    };
+
     return (
       <div className="min-h-screen bg-gray-100">
         <div className="bg-white shadow-sm">
           <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-            <h1 className="text-2xl font-bold">ダッシュボード</h1>
+            <div>
+              <h1 className="text-2xl font-bold">ダッシュボード</h1>
+              {user && (
+                <p className="text-sm text-gray-600">ログイン中: {user.username}</p>
+              )}
+            </div>
             <div className="flex gap-2">
               <button
                 onClick={() => setShowSettings(!showSettings)}
@@ -509,10 +566,7 @@ export default function DigitalMemoTag() {
                 設定
               </button>
               <button
-                onClick={() => {
-                  setIsAdmin(false);
-                  setCurrentPage('login');
-                }}
+                onClick={handleLogout}
                 className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center gap-2"
               >
                 <LogOut size={16} />
@@ -917,11 +971,6 @@ export default function DigitalMemoTag() {
     );
   };
 
-  // Load items on component mount
-  useEffect(() => {
-    loadItems();
-  }, []);
-
   // Render appropriate page
   return (
     <>
@@ -932,7 +981,7 @@ export default function DigitalMemoTag() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       
-      {!isAdmin && currentPage === 'login' && <LoginPage />}
+      {currentPage === 'login' && <LoginPage />}
       {currentPage === 'dashboard' && <Dashboard />}
       {currentPage === 'messageboard' && <MessageBoard />}
       {currentPage === 'mobile' && <MobileAccess />}
