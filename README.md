@@ -82,4 +82,4 @@ The application uses Supabase with the following tables:
 
 ## Support
 
-For technical support, please contact your system administrator.
+For technical support, please contact your system administrator. 
