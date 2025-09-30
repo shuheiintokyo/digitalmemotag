@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { QrCode, Plus, MessageSquare, LogOut, Edit, Download, Trash2, Bell } from 'lucide-react';
+import { QrCode, Plus, MessageSquare, LogOut, Edit, Download, Trash2, Bell, HelpCircle, Info } from 'lucide-react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import QRCode from 'qrcode';
@@ -756,6 +756,7 @@ export default function DigitalMemoTag() {
   const MessageBoard = () => {
     const [newMessage, setNewMessage] = useState('');
     const [userName, setUserName] = useState('');
+    const [showHelp, setShowHelp] = useState(false);
 
     const handleSendMessage = async () => {
       if (newMessage.trim()) {
@@ -774,10 +775,48 @@ export default function DigitalMemoTag() {
       <div className="min-h-screen bg-gray-100">
         <div className="bg-white shadow-sm">
           <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
-            <div>
-              <h1 className="text-xl font-bold">{selectedItem?.name}</h1>
-              <p className="text-sm text-gray-600">ID: {selectedItem?.item_id}</p>
+            <div className="flex items-center gap-2">
+              <div>
+                <h1 className="text-xl font-bold">{selectedItem?.name}</h1>
+                <p className="text-sm text-gray-600">ID: {selectedItem?.item_id}</p>
+              </div>
+              <button
+                onClick={() => setShowHelp(!showHelp)}
+                className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-full transition-colors"
+                title="使い方を見る"
+              >
+                <HelpCircle size={20} />
+              </button>
             </div>
+            {showHelp && (
+              <div className="max-w-4xl mx-auto px-4 pt-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 shadow-sm">
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className="font-bold text-blue-900 flex items-center gap-2">
+                      <Info size={18} />
+                      メッセージボードの使い方
+                    </h3>
+                    <button
+                      onClick={() => setShowHelp(false)}
+                      className="text-blue-500 hover:text-blue-700"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="text-sm text-blue-900 space-y-2">
+                    <p>• このQRコードとタグは特定の製品に紐付けられています。</p>
+                    <p>• <strong>クイックアクション</strong>ボタンで素早く状況報告ができます。</p>
+                    <p>• カスタムメッセージを入力して詳細な報告も可能です。</p>
+                    <p>• ユーザー名は任意です。空欄の場合は「匿名」として投稿されます。</p>
+                    <p>• 投稿を削除することもできますが、<strong>削除したメッセージは復元できません</strong>のでご注意ください。</p>
+                    <p>• メッセージの投稿・削除には<strong>ネットワーク接続が必要</strong>です。</p>
+                    <p className="pt-2 border-t border-blue-200 mt-3">
+                      <strong>⚠️ 重要：</strong>メッセージボードは製品ごとに分かれています。正しいQRコードをスキャンしているか、上部のタイトルで製品名を確認してください。
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
             <button
               onClick={() => setCurrentPage(isAdmin ? 'dashboard' : 'mobile')}
               className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
