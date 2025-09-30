@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { QrCode, Plus, MessageSquare, LogOut, Edit, Download, Trash2, Bell } from 'lucide-react';
+import { QrCode, Plus, MessageSquare, LogOut, Edit, Download, Trash2, Bell, HelpCircle, X } from 'lucide-react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import QRCode from 'qrcode';
@@ -339,6 +339,109 @@ export default function DigitalMemoTag() {
       </>
     );
   }
+
+  // Help Modal Component for Message Board
+  const HelpModal = ({ onClose }) => {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+            <h3 className="text-xl font-bold text-gray-900">メッセージボードの使い方</h3>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <X size={24} />
+            </button>
+          </div>
+          
+          <div className="px-6 py-4 space-y-4">
+            <div>
+              <h4 className="font-bold text-lg text-blue-600 mb-2">📋 メッセージボードについて</h4>
+              <p className="text-gray-700 leading-relaxed">
+                このメッセージボードは、特定の製品やアイテムに紐付けられたQRコードタグと連動しています。
+                各製品には固有のメッセージボードがあり、作業状況の報告や連絡事項の共有ができます。
+              </p>
+            </div>
+
+            <div className="border-t pt-4">
+              <h4 className="font-bold text-lg text-green-600 mb-2">✅ クイックアクションの使い方</h4>
+              <p className="text-gray-700 leading-relaxed mb-2">
+                クイックアクションボタンを使用すると、簡単に作業状況を報告できます：
+              </p>
+              <ul className="list-disc list-inside text-gray-700 space-y-1 ml-2">
+                <li><span className="font-semibold text-blue-600">青ボタン：</span>作業開始の報告</li>
+                <li><span className="font-semibold text-green-600">緑ボタン：</span>作業完了の報告</li>
+                <li><span className="font-semibold text-yellow-600">黄ボタン：</span>遅延の報告</li>
+                <li><span className="font-semibold text-red-600">赤ボタン：</span>問題発生の報告</li>
+              </ul>
+            </div>
+
+            <div className="border-t pt-4">
+              <h4 className="font-bold text-lg text-purple-600 mb-2">✍️ メッセージの投稿方法</h4>
+              <ul className="list-disc list-inside text-gray-700 space-y-2 ml-2">
+                <li><span className="font-semibold">ユーザー名：</span>任意入力です。空欄の場合は「匿名」として投稿されます</li>
+                <li><span className="font-semibold">メッセージ：</span>詳細な報告内容や連絡事項を記入してください</li>
+                <li><span className="font-semibold">送信ボタン：</span>クリックすると投稿が完了します</li>
+              </ul>
+            </div>
+
+            <div className="border-t pt-4">
+              <h4 className="font-bold text-lg text-red-600 mb-2">🗑️ メッセージの削除について</h4>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-gray-700 leading-relaxed mb-2">
+                  投稿したメッセージは削除ボタン（ゴミ箱アイコン）で削除できます。
+                </p>
+                <p className="text-red-700 font-semibold">
+                  ⚠️ 重要：削除したメッセージは復元できません。データベースから完全に削除されます。
+                </p>
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <h4 className="font-bold text-lg text-orange-600 mb-2">🌐 ネットワーク接続について</h4>
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                <p className="text-gray-700 leading-relaxed">
+                  メッセージの投稿・削除には<span className="font-semibold">インターネット接続が必要</span>です。
+                  オフライン状態では操作できませんので、ご注意ください。
+                </p>
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <h4 className="font-bold text-lg text-indigo-600 mb-2">🔍 製品の確認</h4>
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3">
+                <p className="text-gray-700 leading-relaxed mb-2">
+                  画面上部に表示されている<span className="font-semibold">製品名とID</span>を必ず確認してください。
+                </p>
+                <p className="text-gray-700 leading-relaxed">
+                  各メッセージボードは特定の製品に紐付いているため、正しいQRコードをスキャンしているか確認することが重要です。
+                </p>
+              </div>
+            </div>
+
+            <div className="border-t pt-4 bg-gray-50 rounded-lg p-4">
+              <h4 className="font-bold text-lg text-gray-800 mb-2">💡 ヒント</h4>
+              <ul className="list-disc list-inside text-gray-700 space-y-1 ml-2">
+                <li>定期的な作業報告でチーム全体の進捗を共有できます</li>
+                <li>問題が発生した場合は赤ボタンで即座に報告しましょう</li>
+                <li>詳細な情報が必要な場合はカスタムメッセージを活用してください</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="sticky bottom-0 bg-white border-t px-6 py-4">
+            <button
+              onClick={onClose}
+              className="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 font-medium"
+            >
+              閉じる
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // Login Component - Updated to use auth hook
   const LoginPage = () => {
@@ -756,6 +859,7 @@ export default function DigitalMemoTag() {
   const MessageBoard = () => {
     const [newMessage, setNewMessage] = useState('');
     const [userName, setUserName] = useState('');
+    const [showHelp, setShowHelp] = useState(false);
 
     const handleSendMessage = async () => {
       if (newMessage.trim()) {
@@ -778,12 +882,21 @@ export default function DigitalMemoTag() {
               <h1 className="text-xl font-bold">{selectedItem?.name}</h1>
               <p className="text-sm text-gray-600">ID: {selectedItem?.item_id}</p>
             </div>
-            <button
-              onClick={() => setCurrentPage(isAdmin ? 'dashboard' : 'mobile')}
-              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
-            >
-              戻る
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowHelp(true)}
+                className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                title="使い方を見る"
+              >
+                <HelpCircle size={24} />
+              </button>
+              <button
+                onClick={() => setCurrentPage(isAdmin ? 'dashboard' : 'mobile')}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+              >
+                戻る
+              </button>
+            </div>
           </div>
         </div>
 
@@ -898,6 +1011,9 @@ export default function DigitalMemoTag() {
             </div>
           </div>
         </div>
+
+        {/* Help Modal */}
+        {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
 
         {/* Message Delete Confirmation Modal */}
         {messageToDelete && (
