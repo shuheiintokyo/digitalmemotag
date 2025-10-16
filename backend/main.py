@@ -1,22 +1,27 @@
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import List, Optional
-import requests
 import datetime
 import pytz
 import os
 from dotenv import load_dotenv
+import resend
+from appwrite.client import Client
+from appwrite.services.databases import Databases
+from appwrite.query import Query
+from appwrite.id import ID
+from appwrite.exception import AppwriteException
 
 load_dotenv()
 
-app = FastAPI(title="Digital Memo Tag API", version="1.0.0")
+app = FastAPI(title="Digital Memo Tag API with Appwrite", version="2.0.0")
 
-# CORS middleware for frontend communication
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://your-frontend-domain.com"],
+    allow_origins=["http://localhost:3000", "https://digitalmemotag.vercel.app/"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -24,15 +29,43 @@ app.add_middleware(
 
 # Security
 security = HTTPBearer()
-ADMIN_PASSWORD = "1234"
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "1234")
 
-# Supabase configuration
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+# Appwrite configuration
+APPWRITE_ENDPOINT = os.getenv("APPWRITE_ENDPOINT", "https://cloud.appwrite.io/v1")
+APPWRITE_PROJECT_ID = os.getenv("APPWRITE_PROJECT_ID")
+APPWRITE_API_KEY = os.getenv("APPWRITE_API_KEY")
+DATABASE_ID = os.getenv("APPWRITE_DATABASE_ID", "memo_tag_db")
 
-# Print to verify environment variables are loaded
-print(f"SUPABASE_URL: {SUPABASE_URL}")
-print(f"SUPABASE_KEY: {'Set' if SUPABASE_KEY else 'Not set'}")
+# Collection IDs
+ITEMS_COLLECTION = os.getenv("APPWRITE_ITEMS_COLLECTION", "items")
+MESSAGES_COLLECTION = os.getenv("APPWRITE_MESSAGES_COLLECTION", "messages")
+SUBSCRIPTIONS_COLLECTION = os.getenv("APPWRITE_SUBSCRIPTIONS_COLLECTION", "email_subscriptions")
+
+# Resend configuration
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
+
+# Initialize Appwrite
+client = Client()
+client.set_endpoint(APPWRITE_ENDPOINT)
+client.set_project(APPWRITE_PROJECT_ID)
+client.set_key(APPWRITE_API_KEY)
+
+databases = Databases(client)
+
+# Initialize Resend
+if RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
+
+print("="*60)
+print("🚀 Digital Memo Tag API with Appwrite + Resend")
+print("="*60)
+print(f"✅ Appwrite Endpoint: {APPWRITE_ENDPOINT}")
+print(f"✅ Project ID: {APPWRITE_PROJECT_ID}")
+print(f"✅ Database ID: {DATABASE_ID}")
+print(f"✅ Resend: {'Configured' if RESEND_API_KEY else 'Not configured'}")
+print("="*60)
 
 # Pydantic models
 class ItemCreate(BaseModel):
@@ -42,7 +75,7 @@ class ItemCreate(BaseModel):
     status: str = "Working"
 
 class Item(BaseModel):
-    id: Optional[int] = None
+    id: Optional[str] = None
     item_id: str
     name: str
     location: str
@@ -54,9 +87,10 @@ class MessageCreate(BaseModel):
     message: str
     user_name: str = "匿名"
     msg_type: str = "general"
+    send_notification: bool = False
 
 class Message(BaseModel):
-    id: Optional[int] = None
+    id: Optional[str] = None
     item_id: str
     message: str
     user_name: str
@@ -69,100 +103,265 @@ class LoginRequest(BaseModel):
 class StatusUpdate(BaseModel):
     status: str
 
-# Database class (extracted from your Streamlit code)
+class EmailSubscription(BaseModel):
+    item_id: str
+    email: EmailStr
+    notify_all: bool = False
+
+# Email notification function with Resend
+def send_email_notification(to_email: str, item_name: str, item_id: str, message: str, user_name: str):
+    """Send email notification using Resend"""
+    
+    if not RESEND_API_KEY:
+        print("⚠️  Warning: Resend API key not configured")
+        return False
+    
+    try:
+        current_time = datetime.datetime.now(pytz.timezone('Asia/Tokyo')).strftime('%Y年%m月%d日 %H:%M')
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+                <!-- Header -->
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px 20px; text-align: center;">
+                    <h1 style="margin: 0; font-size: 24px; font-weight: 600;">📱 デジタルメモタグシステム</h1>
+                    <p style="margin: 10px 0 0 0; font-size: 14px; opacity: 0.95;">新しいメッセージが投稿されました</p>
+                </div>
+                
+                <!-- Content -->
+                <div style="padding: 30px 20px;">
+                    <!-- Alert Box -->
+                    <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin-bottom: 25px; border-radius: 4px;">
+                        <p style="margin: 0; color: #92400e; font-weight: 600; font-size: 14px;">⚠️ 緊急メッセージ</p>
+                        <p style="margin: 5px 0 0 0; color: #92400e; font-size: 13px;">至急ご確認ください</p>
+                    </div>
+                    
+                    <!-- Item Info Card -->
+                    <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                        <h2 style="margin: 0 0 15px 0; font-size: 16px; color: #374151; font-weight: 600;">📋 機器情報</h2>
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: 500; color: #6b7280; font-size: 14px; width: 90px;">機器名</td>
+                                <td style="padding: 8px 0; color: #111827; font-size: 14px;">{item_name}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: 500; color: #6b7280; font-size: 14px;">機器ID</td>
+                                <td style="padding: 8px 0; color: #111827; font-size: 14px; font-family: 'Courier New', monospace;">{item_id}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: 500; color: #6b7280; font-size: 14px;">投稿者</td>
+                                <td style="padding: 8px 0; color: #111827; font-size: 14px;">{user_name}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: 500; color: #6b7280; font-size: 14px;">日時</td>
+                                <td style="padding: 8px 0; color: #111827; font-size: 14px;">{current_time}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    
+                    <!-- Message Content -->
+                    <div style="background-color: #ffffff; border: 2px solid #667eea; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                        <h3 style="margin: 0 0 12px 0; font-size: 15px; color: #374151; font-weight: 600;">💬 メッセージ内容</h3>
+                        <p style="margin: 0; color: #111827; line-height: 1.6; white-space: pre-wrap; font-size: 14px;">{message}</p>
+                    </div>
+                    
+                    <!-- Action Button -->
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="http://localhost:3000/memo/{item_id}" 
+                           style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                                  color: white; padding: 14px 40px; text-decoration: none; border-radius: 8px; 
+                                  font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px rgba(102, 126, 234, 0.4);">
+                            📋 メッセージボードを開く
+                        </a>
+                    </div>
+                    
+                    <!-- Help Text -->
+                    <div style="background-color: #eff6ff; border-radius: 8px; padding: 15px; margin-top: 25px;">
+                        <p style="margin: 0; font-size: 13px; color: #1e40af; line-height: 1.5;">
+                            💡 <strong>ヒント:</strong> このメールに返信することはできません。メッセージボードから返信してください。
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Footer -->
+                <div style="background-color: #f9fafb; padding: 25px 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+                    <p style="margin: 0 0 8px 0; font-size: 12px; color: #6b7280;">
+                        このメールは自動送信されています
+                    </p>
+                    <p style="margin: 0 0 15px 0; font-size: 12px; color: #9ca3af;">
+                        デジタルメモタグシステム © 2024
+                    </p>
+                    <div style="margin-top: 15px;">
+                        <a href="#" style="color: #667eea; text-decoration: none; font-size: 11px; margin: 0 8px;">通知設定</a>
+                        <span style="color: #d1d5db;">•</span>
+                        <a href="#" style="color: #667eea; text-decoration: none; font-size: 11px; margin: 0 8px;">ヘルプ</a>
+                        <span style="color: #d1d5db;">•</span>
+                        <a href="#" style="color: #667eea; text-decoration: none; font-size: 11px; margin: 0 8px;">配信停止</a>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Send email using Resend
+        params = {
+            "from": RESEND_FROM_EMAIL,
+            "to": [to_email],
+            "subject": f"🔔 新規メッセージ通知: {item_name}",
+            "html": html_content,
+        }
+        
+        email = resend.Emails.send(params)
+        
+        print(f"✅ Email sent to {to_email} - ID: {email.get('id', 'N/A')}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error sending email to {to_email}: {str(e)}")
+        return False
+
+# Database class with Appwrite
 class Database:
     def __init__(self):
-        self.base_url = SUPABASE_URL
-        self.headers = {
-            'apikey': SUPABASE_KEY,
-            'Authorization': f'Bearer {SUPABASE_KEY}',
-            'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
-        }
-        self.messages_table = "messages"
-        self.items_table = "items"
+        self.databases = databases
+        self.database_id = DATABASE_ID
+        self.items_collection = ITEMS_COLLECTION
+        self.messages_collection = MESSAGES_COLLECTION
+        self.subscriptions_collection = SUBSCRIPTIONS_COLLECTION
     
     def get_items(self):
+        """Get all items"""
         try:
-            response = requests.get(
-                f"{self.base_url}/rest/v1/{self.items_table}?select=*&order=created_at.desc",
-                headers=self.headers,
-                timeout=10
+            result = self.databases.list_documents(
+                database_id=self.database_id,
+                collection_id=self.items_collection,
+                queries=[
+                    Query.order_desc('created_at'),
+                    Query.limit(100)
+                ]
             )
-            if response.status_code == 200:
-                return response.json()
+            
+            items = []
+            for doc in result['documents']:
+                item = {
+                    'id': doc['$id'],
+                    'item_id': doc['item_id'],
+                    'name': doc['name'],
+                    'location': doc['location'],
+                    'status': doc['status'],
+                    'created_at': doc.get('created_at'),
+                    'updated_at': doc.get('updated_at')
+                }
+                items.append(item)
+            
+            return items
+        except AppwriteException as e:
+            print(f"❌ Appwrite error getting items: {e.message}")
             return []
         except Exception as e:
-            print(f"Error getting items: {e}")
+            print(f"❌ Error getting items: {e}")
             return []
     
-    def get_messages(self, item_id=None):
+    def get_item_by_id(self, item_id: str):
+        """Get single item by item_id"""
         try:
-            url = f"{self.base_url}/rest/v1/{self.messages_table}?select=*&order=created_at.desc"
-            if item_id:
-                url += f"&item_id=eq.{item_id}"
+            result = self.databases.list_documents(
+                database_id=self.database_id,
+                collection_id=self.items_collection,
+                queries=[
+                    Query.equal('item_id', item_id),
+                    Query.limit(1)
+                ]
+            )
             
-            response = requests.get(url, headers=self.headers, timeout=10)
-            
-            if response.status_code == 200:
-                messages = response.json()
-                
-                # Handle JSONB structure if needed
-                if messages and 'payload' in messages[0]:
-                    transformed_messages = []
-                    for msg in messages:
-                        payload = msg.get('payload', {})
-                        if item_id and payload.get('item_id') != item_id:
-                            continue
-                        
-                        transformed_msg = {
-                            'item_id': payload.get('item_id', ''),
-                            'message': payload.get('message', ''),
-                            'user_name': payload.get('user', 'Anonymous'),
-                            'msg_type': msg.get('topic', 'general'),
-                            'created_at': msg.get('created_at', ''),
-                            'id': msg.get('id', '')
-                        }
-                        transformed_messages.append(transformed_msg)
-                    return transformed_messages
-                else:
-                    return messages
-            return []
+            if result['total'] > 0:
+                doc = result['documents'][0]
+                return {
+                    'id': doc['$id'],
+                    'item_id': doc['item_id'],
+                    'name': doc['name'],
+                    'location': doc['location'],
+                    'status': doc['status'],
+                    'created_at': doc.get('created_at')
+                }
+            return None
         except Exception as e:
-            print(f"Error getting messages: {e}")
+            print(f"❌ Error getting item: {e}")
+            return None
+    
+    def get_messages(self, item_id=None):
+        """Get messages, optionally filtered by item_id"""
+        try:
+            queries = [
+                Query.order_desc('created_at'),
+                Query.limit(100)
+            ]
+            
+            if item_id:
+                queries.append(Query.equal('item_id', item_id))
+            
+            result = self.databases.list_documents(
+                database_id=self.database_id,
+                collection_id=self.messages_collection,
+                queries=queries
+            )
+            
+            messages = []
+            for doc in result['documents']:
+                msg = {
+                    'id': doc['$id'],
+                    'item_id': doc['item_id'],
+                    'message': doc['message'],
+                    'user_name': doc.get('user_name', '匿名'),
+                    'msg_type': doc.get('msg_type', 'general'),
+                    'created_at': doc.get('created_at')
+                }
+                messages.append(msg)
+            
+            return messages
+        except Exception as e:
+            print(f"❌ Error getting messages: {e}")
             return []
     
     def add_item(self, item_id, name, location, status="Working"):
+        """Add new item"""
         try:
-            # Check if item exists
-            existing_items = self.get_items()
-            for item in existing_items:
-                if item.get('item_id') == item_id:
-                    return False, "Item ID already exists"
+            existing = self.get_item_by_id(item_id)
+            if existing:
+                return False, "Item ID already exists"
             
-            data = {
-                "item_id": item_id,
-                "name": name,
-                "location": location,
-                "status": status,
-                "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
-            }
-            
-            response = requests.post(
-                f"{self.base_url}/rest/v1/{self.items_table}",
-                headers=self.headers,
-                json=data,
-                timeout=10
+            doc = self.databases.create_document(
+                database_id=self.database_id,
+                collection_id=self.items_collection,
+                document_id=ID.unique(),
+                data={
+                    'item_id': item_id,
+                    'name': name,
+                    'location': location,
+                    'status': status
+                    # 'created_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    # 'updated_at': datetime.datetime.now(datetime.timezone.utc).isoformat()
+                }
             )
             
-            if response.status_code == 201:
-                return True, "Success"
-            else:
-                return False, f"Status {response.status_code}: {response.text}"
+            print(f"✅ Added item: {item_id} - {name}")
+            return True, "Success"
+        except AppwriteException as e:
+            print(f"❌ Appwrite error adding item: {e.message}")
+            return False, e.message
         except Exception as e:
+            print(f"❌ Error adding item: {e}")
             return False, str(e)
     
-    def add_message(self, item_id, message, user_name, msg_type="general"):
+    def add_message(self, item_id, message, user_name, msg_type="general", send_notification=False):
+        """Add new message and optionally send notifications"""
         try:
             user_name = user_name.strip() if user_name and user_name.strip() else "匿名"
             message = message.strip() if message else ""
@@ -170,65 +369,205 @@ class Database:
             if not message:
                 return False, "Message is empty"
             
-            data = {
-                "item_id": item_id,
-                "message": message,
-                "user_name": user_name,
-                "msg_type": msg_type,
-                "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
-            }
-            
-            response = requests.post(
-                f"{self.base_url}/rest/v1/{self.messages_table}",
-                headers=self.headers,
-                json=data,
-                timeout=10
+            doc = self.databases.create_document(
+                database_id=self.database_id,
+                collection_id=self.messages_collection,
+                document_id=ID.unique(),
+                data={
+                    'item_id': item_id,
+                    'message': message,
+                    'user_name': user_name,
+                    'msg_type': msg_type
+                    # 'created_at': datetime.datetime.now(datetime.timezone.utc).isoformat()
+                }
             )
             
-            if response.status_code == 201:
-                return True, "Message posted successfully"
-            else:
-                return False, f"Failed to post message: {response.status_code}"
-                
+            print(f"✅ Message added: {item_id} by {user_name}")
+            
+            if send_notification:
+                print(f"📧 Sending notifications for item: {item_id}")
+                self.send_notifications_for_item(item_id, message, user_name)
+            
+            return True, "Message posted successfully"
+            
+        except AppwriteException as e:
+            print(f"❌ Appwrite error adding message: {e.message}")
+            return False, f"Failed to post message: {e.message}"
         except Exception as e:
+            print(f"❌ Error adding message: {e}")
             return False, f"Unexpected error: {str(e)}"
     
-    def update_item_status(self, item_id, status):
+    def send_notifications_for_item(self, item_id, message, user_name):
+        """Send email notifications to subscribed users"""
         try:
-            data = {
-                "status": status,
-                "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
-            }
+            item = self.get_item_by_id(item_id)
+            if not item:
+                print(f"⚠️  Item not found: {item_id}")
+                return
             
-            response = requests.patch(
-                f"{self.base_url}/rest/v1/{self.items_table}?item_id=eq.{item_id}",
-                headers=self.headers,
-                json=data,
-                timeout=10
+            item_name = item['name']
+            subscribers = self.get_subscriptions(item_id)
+            
+            if not subscribers:
+                print(f"ℹ️  No subscribers for item: {item_id}")
+                return
+            
+            print(f"📧 Sending notifications to {len(subscribers)} subscriber(s)")
+            
+            success_count = 0
+            for sub in subscribers:
+                email = sub.get('email')
+                if email:
+                    if send_email_notification(email, item_name, item_id, message, user_name):
+                        success_count += 1
+            
+            print(f"✅ Sent {success_count}/{len(subscribers)} notifications")
+                    
+        except Exception as e:
+            print(f"❌ Error sending notifications: {e}")
+    
+    def add_subscription(self, item_id, email, notify_all=False):
+        """Add email subscription for an item"""
+        try:
+            existing = self.get_subscriptions(item_id)
+            for sub in existing:
+                if sub.get('email') == email:
+                    return False, "Already subscribed"
+            
+            doc = self.databases.create_document(
+                database_id=self.database_id,
+                collection_id=self.subscriptions_collection,
+                document_id=ID.unique(),
+                data={
+                    'item_id': item_id,
+                    'email': email,
+                    'notify_all': notify_all
+                    # 'created_at': datetime.datetime.now(datetime.timezone.utc).isoformat()
+                }
             )
             
-            return response.status_code in [200, 204]
+            print(f"✅ Subscription added: {email} for {item_id}")
+            return True, "Subscription added"
+            
+        except AppwriteException as e:
+            print(f"❌ Appwrite error adding subscription: {e.message}")
+            return False, e.message
         except Exception as e:
+            print(f"❌ Error adding subscription: {e}")
+            return False, str(e)
+    
+    def get_subscriptions(self, item_id=None):
+        """Get email subscriptions, optionally filtered by item_id"""
+        try:
+            queries = [Query.limit(100)]
+            
+            if item_id:
+                queries.append(Query.equal('item_id', item_id))
+            
+            result = self.databases.list_documents(
+                database_id=self.database_id,
+                collection_id=self.subscriptions_collection,
+                queries=queries
+            )
+            
+            subscriptions = []
+            for doc in result['documents']:
+                sub = {
+                    'id': doc['$id'],
+                    'item_id': doc['item_id'],
+                    'email': doc['email'],
+                    'notify_all': doc.get('notify_all', False)
+                    # 'created_at': doc.get('created_at')
+                }
+                subscriptions.append(sub)
+            
+            return subscriptions
+        except Exception as e:
+            print(f"❌ Error getting subscriptions: {e}")
+            return []
+    
+    def delete_subscription(self, item_id, email):
+        """Remove email subscription"""
+        try:
+            subscriptions = self.get_subscriptions(item_id)
+            
+            for sub in subscriptions:
+                if sub['email'] == email:
+                    self.databases.delete_document(
+                        database_id=self.database_id,
+                        collection_id=self.subscriptions_collection,
+                        document_id=sub['id']
+                    )
+                    print(f"✅ Subscription removed: {email} from {item_id}")
+                    return True
+            
+            print(f"⚠️  Subscription not found: {email} for {item_id}")
+            return False
+            
+        except Exception as e:
+            print(f"❌ Error deleting subscription: {e}")
+            return False
+    
+    def update_item_status(self, item_id, status):
+        """Update item status"""
+        try:
+            item = self.get_item_by_id(item_id)
+            
+            if not item:
+                return False
+            
+            self.databases.update_document(
+                database_id=self.database_id,
+                collection_id=self.items_collection,
+                document_id=item['id'],
+                data={
+                    'status': status,
+                    'updated_at': datetime.datetime.now(datetime.timezone.utc).isoformat()
+                }
+            )
+            
+            print(f"✅ Status updated: {item_id} -> {status}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error updating status: {e}")
             return False
     
     def delete_item(self, item_id):
+        """Delete item and all related data"""
         try:
-            # Delete messages first
-            requests.delete(
-                f"{self.base_url}/rest/v1/{self.messages_table}?item_id=eq.{item_id}",
-                headers=self.headers,
-                timeout=10
+            item = self.get_item_by_id(item_id)
+            
+            if not item:
+                return False
+            
+            messages = self.get_messages(item_id)
+            for msg in messages:
+                self.databases.delete_document(
+                    database_id=self.database_id,
+                    collection_id=self.messages_collection,
+                    document_id=msg['id']
+                )
+            
+            subscriptions = self.get_subscriptions(item_id)
+            for sub in subscriptions:
+                self.databases.delete_document(
+                    database_id=self.database_id,
+                    collection_id=self.subscriptions_collection,
+                    document_id=sub['id']
+                )
+            
+            self.databases.delete_document(
+                database_id=self.database_id,
+                collection_id=self.items_collection,
+                document_id=item['id']
             )
             
-            # Delete item
-            response = requests.delete(
-                f"{self.base_url}/rest/v1/{self.items_table}?item_id=eq.{item_id}",
-                headers=self.headers,
-                timeout=10
-            )
+            print(f"✅ Item deleted: {item_id} (including {len(messages)} messages and {len(subscriptions)} subscriptions)")
+            return True
             
-            return response.status_code in [200, 204]
         except Exception as e:
+            print(f"❌ Error deleting item: {e}")
             return False
 
 # Initialize database
@@ -264,10 +603,14 @@ def format_timestamp_jst(timestamp_str):
         return "時刻不明"
 
 # API Routes
-
 @app.get("/")
 def read_root():
-    return {"message": "Digital Memo Tag API"}
+    return {
+        "message": "Digital Memo Tag API with Appwrite + Resend",
+        "version": "2.0.0",
+        "database": "Appwrite",
+        "email": "Resend" if RESEND_API_KEY else "Not configured"
+    }
 
 @app.post("/login")
 def login(request: LoginRequest):
@@ -283,10 +626,9 @@ def get_items():
 
 @app.get("/items/{item_id}")
 def get_item(item_id: str):
-    items = db.get_items()
-    for item in items:
-        if item.get('item_id') == item_id:
-            return item
+    item = db.get_item_by_id(item_id)
+    if item:
+        return item
     raise HTTPException(status_code=404, detail="Item not found")
 
 @app.post("/items")
@@ -316,7 +658,6 @@ def delete_item(item_id: str, _: str = Depends(verify_admin_token)):
 @app.get("/messages", response_model=List[Message])
 def get_messages(item_id: Optional[str] = None):
     messages = db.get_messages(item_id)
-    # Add formatted timestamp to each message
     for msg in messages:
         msg['formatted_time'] = format_timestamp_jst(msg.get('created_at', ''))
     return messages
@@ -327,16 +668,47 @@ def create_message(message: MessageCreate):
         message.item_id, 
         message.message, 
         message.user_name, 
-        message.msg_type
+        message.msg_type,
+        message.send_notification
     )
     if success:
         return {"success": True, "message": "Message posted successfully"}
     else:
         raise HTTPException(status_code=400, detail=error_msg)
 
+@app.post("/subscriptions")
+def add_subscription(subscription: EmailSubscription):
+    success, message = db.add_subscription(
+        subscription.item_id,
+        subscription.email,
+        subscription.notify_all
+    )
+    if success:
+        return {"success": True, "message": message}
+    else:
+        raise HTTPException(status_code=400, detail=message)
+
+@app.get("/subscriptions/{item_id}")
+def get_subscriptions(item_id: str):
+    subscriptions = db.get_subscriptions(item_id)
+    return subscriptions
+
+@app.delete("/subscriptions/{item_id}/{email}")
+def delete_subscription(item_id: str, email: str, _: str = Depends(verify_admin_token)):
+    success = db.delete_subscription(item_id, email)
+    if success:
+        return {"success": True, "message": "Subscription removed"}
+    else:
+        raise HTTPException(status_code=400, detail="Failed to remove subscription")
+
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "timestamp": datetime.datetime.now().isoformat()}
+    return {
+        "status": "healthy",
+        "timestamp": datetime.datetime.now().isoformat(),
+        "database": "Appwrite",
+        "email": "Resend configured" if RESEND_API_KEY else "Resend not configured"
+    }
 
 if __name__ == "__main__":
     import uvicorn
