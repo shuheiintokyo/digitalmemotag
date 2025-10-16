@@ -42,6 +42,7 @@ export interface MessageCreate {
   message: string;
   user_name: string;
   msg_type: string;
+  send_notification?: boolean;  // Add this field
 }
 
 export interface ItemCreate {
@@ -92,6 +93,12 @@ export const getMessages = async (itemId?: string): Promise<Message[]> => {
 
 export const createMessage = async (message: MessageCreate) => {
   const response = await api.post('/messages', message);
+  return response.data;
+};
+
+// ADD THIS NEW FUNCTION:
+export const deleteMessage = async (messageId: string) => {
+  const response = await api.delete(`/messages/${messageId}`);
   return response.data;
 };
 

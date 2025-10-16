@@ -679,6 +679,20 @@ def create_message(message: MessageCreate):
         return {"success": True, "message": "Message posted successfully"}
     else:
         raise HTTPException(status_code=400, detail=error_msg)
+    
+@app.delete("/messages/{message_id}")    
+def delete_message(message_id: str, _: str = Depends(verify_admin_token)):
+    """Delete a specific message"""
+    try:
+        db.databases.delete_document(
+            database_id=DATABASE_ID,
+            collection_id=MESSAGES_COLLECTION,
+            document_id=message_id
+        )
+        return {"success": True, "message": "Message deleted"}
+    except Exception as e:
+        print(f"❌ Error deleting message: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to delete message: {str(e)}")
 
 @app.post("/subscriptions")
 def add_subscription(subscription: EmailSubscription):

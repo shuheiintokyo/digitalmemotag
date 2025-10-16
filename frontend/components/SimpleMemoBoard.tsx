@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getItem, getMessages, createMessage, Item, Message } from '../lib/api';
 
 interface MemoBoardProps {
   itemId: string;
@@ -6,12 +7,12 @@ interface MemoBoardProps {
 }
 
 const SimpleMemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false }) => {
-  const [item, setItem] = useState<any>(null);
-  const [messages, setMessages] = useState<any[]>([]);
+  const [item, setItem] = useState<Item | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [postLoading, setPostLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Form state
   const [userName, setUserName] = useState('');
   const [message, setMessage] = useState('');
@@ -24,22 +25,14 @@ const SimpleMemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = fa
     try {
       setLoading(true);
       
-      // Fetch item data
-      const itemResponse = await fetch(`http://localhost:8000/items/${itemId}`);
-      if (itemResponse.ok) {
-        const itemData = await itemResponse.json();
-        setItem(itemData);
-      } else {
-        throw new Error('Item not found');
-      }
-
-      // Fetch messages
-      const messagesResponse = await fetch(`http://localhost:8000/messages?item_id=${itemId}`);
-      if (messagesResponse.ok) {
-        const messagesData = await messagesResponse.json();
-        setMessages(messagesData);
-      }
-
+      // Use API functions instead of direct fetch
+      const [itemData, messagesData] = await Promise.all([
+        getItem(itemId),
+        getMessages(itemId)
+      ]);
+      
+      setItem(itemData);
+      setMessages(messagesData);
       setError(null);
     } catch (err) {
       setError('データの取得に失敗しました');
@@ -55,26 +48,17 @@ const SimpleMemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = fa
 
     setPostLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          item_id: itemId,
-          message: message.trim(),
-          user_name: userName.trim() || '匿名',
-          msg_type: 'general'
-        })
+      // Use API function instead of direct fetch
+      await createMessage({
+        item_id: itemId,
+        message: message.trim(),
+        user_name: userName.trim() || '匿名',
+        msg_type: 'general'
       });
-
-      if (response.ok) {
-        setMessage('');
-        setUserName('');
-        await fetchData(); // Refresh messages
-      } else {
-        throw new Error('Failed to post message');
-      }
+      
+      setMessage('');
+      setUserName('');
+      await fetchData(); // Refresh messages
     } catch (err) {
       setError('メッセージの投稿に失敗しました');
       console.error('Error posting message:', err);
@@ -101,7 +85,7 @@ const SimpleMemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = fa
           <div className="text-red-500 text-xl mb-4">❌</div>
           <h2 className="text-lg font-semibold mb-2">エラー</h2>
           <p className="text-gray-600 mb-4">{error}</p>
-          <button 
+          <button
             onClick={fetchData}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
           >
@@ -133,7 +117,6 @@ const SimpleMemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = fa
         {/* Message Form */}
         <div className="bg-white rounded-lg shadow-sm p-4">
           <h2 className="text-lg font-semibold mb-4">💬 新しいメッセージ</h2>
-          
           <form onSubmit={handleSubmitMessage} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -147,7 +130,6 @@ const SimpleMemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = fa
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 メッセージ
@@ -160,7 +142,6 @@ const SimpleMemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = fa
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
               />
             </div>
-
             <button
               type="submit"
               disabled={!message.trim() || postLoading}
@@ -174,7 +155,6 @@ const SimpleMemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = fa
         {/* Messages List */}
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">📊 {messages.length} 件のメッセージ</h2>
-          
           {messages.length === 0 ? (
             <div className="bg-white rounded-lg shadow-sm p-6 text-center">
               <div className="text-gray-400 text-4xl mb-2">📭</div>
