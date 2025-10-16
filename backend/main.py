@@ -3,11 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
+from fastapi.responses import JSONResponse
 import datetime
 import pytz
 import os
 from dotenv import load_dotenv
 import resend
+import json
+from starlette.responses import Response
 from appwrite.client import Client
 from appwrite.services.databases import Databases
 from appwrite.query import Query
@@ -17,6 +20,27 @@ from appwrite.exception import AppwriteException
 load_dotenv()
 
 app = FastAPI(title="Digital Memo Tag API with Appwrite", version="2.0.0")
+
+app = FastAPI(title="Digital Memo Tag API with Appwrite", version="2.0.0")
+
+class UnicodeJSONResponse(Response):
+    media_type = "application/json"
+    
+    def render(self, content) -> bytes:
+        return json.dumps(
+            content,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+# Set as default response class
+app = FastAPI(
+    title="Digital Memo Tag API with Appwrite", 
+    version="2.0.0",
+    default_response_class=UnicodeJSONResponse
+)
 
 # CORS middleware
 app.add_middleware(
@@ -617,10 +641,10 @@ def login(request: LoginRequest):
     else:
         raise HTTPException(status_code=401, detail="Invalid password")
 
-@app.get("/items", response_model=List[Item])
+@app.get("/items")
 def get_items():
     items = db.get_items()
-    return items
+    return JSONResponse(content=items, media_type="application/json; charset=utf-8")
 
 @app.get("/items/{item_id}")
 def get_item(item_id: str):
