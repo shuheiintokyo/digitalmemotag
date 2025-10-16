@@ -1,97 +1,43 @@
 import { useState, useEffect } from 'react';
+import { api } from '../lib/api';
 
-export const useAuth = () => {
+export function useAuth() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Check session on mount and periodically
   useEffect(() => {
-    checkSession();
-    
-    // Check session every 5 minutes to ensure it's still valid
-    const interval = setInterval(checkSession, 5 * 60 * 1000);
-    
-    return () => clearInterval(interval);
+    checkAuth();
   }, []);
 
-  const checkSession = async () => {
-    try {
-      const response = await fetch('/api/auth/check', {
-        credentials: 'include'
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setIsAdmin(true);
-          setUser(data.user);
-        } else {
-          setIsAdmin(false);
-          setUser(null);
-        }
-      } else {
-        setIsAdmin(false);
-        setUser(null);
-      }
-    } catch (error) {
-      console.error('Session check failed:', error);
-      setIsAdmin(false);
-      setUser(null);
-    } finally {
-      setLoading(false);
+  const checkAuth = () => {
+    const token = api.getToken();
+    if (token) {
+      setIsAdmin(true);
+      setUser({ username: 'admin' });
     }
+    setLoading(false);
   };
 
   const login = async (username, password) => {
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ username, password }),
-      });
-
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
+      const result = await api.login(password);
+      if (result.success) {
         setIsAdmin(true);
-        setUser({ username: username || 'admin', role: 'admin' });
+        setUser({ username: username || 'admin' });
         return { success: true };
-      } else {
-        return { success: false, message: data.message };
       }
+      return { success: false, message: 'ログインに失敗しました' };
     } catch (error) {
-      console.error('Login failed:', error);
-      return { success: false, message: 'Network error' };
+      return { success: false, message: error.message };
     }
   };
 
-  const logout = async () => {
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-      });
-      
-      setIsAdmin(false);
-      setUser(null);
-    } catch (error) {
-      console.error('Logout failed:', error);
-      // Still clear local state even if request fails
-      setIsAdmin(false);
-      setUser(null);
-    }
+  const logout = () => {
+    api.clearToken();
+    setIsAdmin(false);
+    setUser(null);
   };
 
-  return {
-    isAdmin,
-    user,
-    loading,
-    login,
-    logout,
-    checkSession
-  };
-};
+  return { isAdmin, user, loading, login, logout };
+}

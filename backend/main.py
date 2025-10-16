@@ -21,7 +21,11 @@ app = FastAPI(title="Digital Memo Tag API with Appwrite", version="2.0.0")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://digitalmemotag.vercel.app/"],
+    allow_origins=[
+        "http://localhost:3000", 
+        "https://digitalmemotag.vercel.app",
+        "https://*.vercel.app"  # Allow all Vercel preview deployments
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
