@@ -8,7 +8,7 @@ const HomePage: React.FC = () => {
   return (
     <>
       <Head>
-        <title>デジタルメモタグシステム - ホーム</title>
+        <title>デジタルメモタグシステム</title>
       </Head>
       
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -58,25 +58,18 @@ const HomePage: React.FC = () => {
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-col md:flex-row gap-4 justify-center items-center">
+          {/* Admin Login Button - Centered */}
+          <div className="flex justify-center mb-12">
             <button
               onClick={() => router.push('/login')}
-              className="w-full md:w-auto bg-blue-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors shadow-lg"
+              className="bg-blue-600 text-white px-12 py-4 rounded-lg text-xl font-semibold hover:bg-blue-700 transition-colors shadow-lg"
             >
               🔐 管理者ログイン
-            </button>
-            
-            <button
-              onClick={() => router.push('/memo/demo')}
-              className="w-full md:w-auto bg-green-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-green-700 transition-colors shadow-lg"
-            >
-              🎯 デモを試す
             </button>
           </div>
 
           {/* How It Works */}
-          <div className="mt-16 bg-white rounded-lg shadow-lg p-8">
+          <div className="bg-white rounded-lg shadow-lg p-8">
             <h2 className="text-3xl font-bold text-center mb-8">使い方</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -106,26 +99,10 @@ const HomePage: React.FC = () => {
             </div>
           </div>
 
-          {/* QR Code Demo */}
-          <div className="mt-12 text-center">
-            <h3 className="text-2xl font-semibold mb-4">QRコードの例</h3>
-            <p className="text-gray-600 mb-6">
-              実際の運用では、このようなQRコードを機器に貼り付けます
-            </p>
-            
-            <div className="inline-block bg-white p-6 rounded-lg shadow-lg">
-              <div className="w-32 h-32 mx-auto bg-gray-200 rounded border-2 border-dashed border-gray-400 flex items-center justify-center mb-4">
-                <span className="text-gray-500 text-sm">QRコード</span>
-              </div>
-              <p className="text-sm text-gray-600">機器名: デモマシン</p>
-              <p className="text-sm text-gray-600">場所: 工場1階</p>
-            </div>
-          </div>
-
           {/* Footer */}
           <div className="text-center mt-16 pt-8 border-t border-gray-200">
             <p className="text-gray-500">
-              © 2024 デジタルメモタグシステム - FastAPI + Next.js で構築
+              © 2025 デジタルメモタグシステム - FastAPI + Next.js + Appwrite
             </p>
           </div>
         </div>

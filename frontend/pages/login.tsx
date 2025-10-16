@@ -109,12 +109,7 @@ const LoginPage: React.FC = () => {
           <p className="text-sm text-gray-600 mb-4">
             QRコードをスキャンしてメモボードに直接アクセス、またはテスト用リンクを使用
           </p>
-          <button
-            onClick={() => router.push('/memo/demo')}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            デモメモボードを表示
-          </button>
+  
         </div>
       </div>
     </div>
