@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
 import { QrCode, Plus, MessageSquare, LogOut, Edit, Download, Trash2, Bell, HelpCircle, X } from 'lucide-react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
