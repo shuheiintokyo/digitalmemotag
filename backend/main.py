@@ -247,7 +247,7 @@ class Database:
                 database_id=self.database_id,
                 collection_id=self.items_collection,
                 queries=[
-                    Query.order_desc('created_at'),
+                    Query.order_desc('$createdAt'),  # ✅ FIXED: Use $createdAt
                     Query.limit(100)
                 ]
             )
@@ -260,8 +260,8 @@ class Database:
                     'name': doc['name'],
                     'location': doc['location'],
                     'status': doc['status'],
-                    'created_at': doc.get('created_at'),
-                    'updated_at': doc.get('updated_at')
+                    'created_at': doc.get('$createdAt'),  # ✅ FIXED: Use $createdAt
+                    'updated_at': doc.get('$updatedAt')   # ✅ FIXED: Use $updatedAt
                 }
                 items.append(item)
             
@@ -293,7 +293,7 @@ class Database:
                     'name': doc['name'],
                     'location': doc['location'],
                     'status': doc['status'],
-                    'created_at': doc.get('created_at')
+                    'created_at': doc.get('$createdAt')  # ✅ FIXED: Use $createdAt
                 }
             return None
         except Exception as e:
@@ -304,7 +304,7 @@ class Database:
         """Get messages, optionally filtered by item_id"""
         try:
             queries = [
-                Query.order_desc('created_at'),
+                Query.order_desc('$createdAt'),  # ✅ FIXED: Use $createdAt
                 Query.limit(100)
             ]
             
@@ -325,7 +325,7 @@ class Database:
                     'message': doc['message'],
                     'user_name': doc.get('user_name', '匿名'),
                     'msg_type': doc.get('msg_type', 'general'),
-                    'created_at': doc.get('created_at')
+                    'created_at': doc.get('$createdAt')  # ✅ FIXED: Use $createdAt
                 }
                 messages.append(msg)
             
@@ -350,8 +350,6 @@ class Database:
                     'name': name,
                     'location': location,
                     'status': status
-                    # 'created_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                    # 'updated_at': datetime.datetime.now(datetime.timezone.utc).isoformat()
                 }
             )
             
@@ -382,7 +380,6 @@ class Database:
                     'message': message,
                     'user_name': user_name,
                     'msg_type': msg_type
-                    # 'created_at': datetime.datetime.now(datetime.timezone.utc).isoformat()
                 }
             )
             
@@ -446,7 +443,6 @@ class Database:
                     'item_id': item_id,
                     'email': email,
                     'notify_all': notify_all
-                    # 'created_at': datetime.datetime.now(datetime.timezone.utc).isoformat()
                 }
             )
             
@@ -481,7 +477,6 @@ class Database:
                     'item_id': doc['item_id'],
                     'email': doc['email'],
                     'notify_all': doc.get('notify_all', False)
-                    # 'created_at': doc.get('created_at')
                 }
                 subscriptions.append(sub)
             
@@ -525,8 +520,7 @@ class Database:
                 collection_id=self.items_collection,
                 document_id=item['id'],
                 data={
-                    'status': status,
-                    'updated_at': datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    'status': status
                 }
             )
             
