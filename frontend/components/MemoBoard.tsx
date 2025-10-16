@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { getItem, getMessages, createMessage, Message, Item } from '../lib/api';
-import { useWebSocket } from '../lib/useWebSocket';
 
 interface MemoBoardProps {
   itemId: string;
@@ -38,26 +37,6 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
   useEffect(() => {
     fetchData();
   }, [itemId]);
-
-  // WebSocket connection for real-time updates
-  const { isConnected, connectionStatus } = useWebSocket({
-    url: `/ws/item/${itemId}`,
-    onMessage: (message) => {
-      if (message.type === 'new_message' && message.data.item_id === itemId) {
-        // Add new message to the list without full refresh
-        setMessages(prev => [message.data, ...prev]);
-      } else if (message.type === 'status_update' && message.data.item_id === itemId) {
-        // Update item status
-        setItem(prev => prev ? { ...prev, status: message.data.status } : null);
-      }
-    },
-    onConnect: () => {
-      console.log('Connected to WebSocket for item:', itemId);
-    },
-    onDisconnect: () => {
-      console.log('Disconnected from WebSocket');
-    }
-  });
 
   const fetchData = async () => {
     try {
