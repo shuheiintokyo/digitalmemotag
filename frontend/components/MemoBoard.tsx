@@ -6,7 +6,7 @@ interface MemoBoardProps {
   isDirectAccess?: boolean;
 }
 
-const MESSAGE_TYPE_EMOJIS = {
+const MESSAGE_TYPE_EMOJIS: Record<string, string> = {
   'general': '💬',
   'issue': '⚠️',
   'fixed': '✅', 
@@ -14,7 +14,7 @@ const MESSAGE_TYPE_EMOJIS = {
   'status_update': '🔄'
 };
 
-const MESSAGE_TYPE_COLORS = {
+const MESSAGE_TYPE_COLORS: Record<string, string> = {
   'issue': 'border-yellow-400 bg-yellow-50',
   'question': 'border-blue-400 bg-blue-50',
   'fixed': 'border-green-400 bg-green-50',
@@ -29,21 +29,16 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
   const [postLoading, setPostLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Form state
   const [userName, setUserName] = useState('');
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('general');
   const [sendNotification, setSendNotification] = useState(false);
-  
-  // ✅ NEW: Check if current user is admin
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    // Check if user is admin (has auth token)
     const authToken = localStorage.getItem('authToken');
     setIsAdmin(!!authToken);
     
-    // Set default name if admin
     if (authToken) {
       setUserName('管理者');
     }
@@ -85,7 +80,7 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
       
       setMessage('');
       if (!isAdmin) {
-        setUserName(''); // Only clear username for non-admin users
+        setUserName('');
       }
       setSendNotification(false);
       await fetchData();
@@ -97,8 +92,7 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
     }
   };
 
-  // ✅ NEW: Helper function to determine if message is from admin
-  const isAdminMessage = (msg: Message) => {
+  const isAdminMessage = (msg: Message): boolean => {
     return ['管理者', 'admin', 'Admin', 'Administrator'].includes(msg.user_name);
   };
 
@@ -133,7 +127,6 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Header */}
       <div className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -151,7 +144,6 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
       </div>
 
       <div className="max-w-2xl mx-auto p-4 space-y-6">
-        {/* ✅ NEW: Chat-Style Messages List */}
         <div className="space-y-3">
           <h2 className="text-sm font-medium text-gray-600 mb-4">💬 {messages.length} 件のメッセージ</h2>
           
@@ -164,8 +156,8 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
           ) : (
             messages.map((msg, index) => {
               const isFromAdmin = isAdminMessage(msg);
-              const emoji = MESSAGE_TYPE_EMOJIS[msg.msg_type as keyof typeof MESSAGE_TYPE_EMOJIS] || '💬';
-              const colorClass = MESSAGE_TYPE_COLORS[msg.msg_type as keyof typeof MESSAGE_TYPE_COLORS] || 'border-gray-300 bg-white';
+              const emoji = MESSAGE_TYPE_EMOJIS[msg.msg_type] || '💬';
+              const colorClass = MESSAGE_TYPE_COLORS[msg.msg_type] || 'border-gray-300 bg-white';
               
               return (
                 <div 
@@ -173,7 +165,6 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
                   className={`flex ${isFromAdmin ? 'justify-start' : 'justify-end'}`}
                 >
                   <div className={`max-w-[80%] ${isFromAdmin ? 'mr-auto' : 'ml-auto'}`}>
-                    {/* Sender name and time */}
                     <div className={`flex items-center gap-2 mb-1 ${isFromAdmin ? '' : 'flex-row-reverse'}`}>
                       <span className={`text-xs font-medium ${isFromAdmin ? 'text-purple-700' : 'text-blue-700'}`}>
                         {isFromAdmin ? '👔' : '👤'} {msg.user_name}
@@ -181,7 +172,6 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
                       <span className="text-xs text-gray-400">{msg.formatted_time}</span>
                     </div>
                     
-                    {/* Message bubble */}
                     <div className={`
                       rounded-2xl p-3 shadow-sm border-2
                       ${isFromAdmin 
@@ -203,12 +193,10 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
           )}
         </div>
 
-        {/* Message Form */}
         <div className="bg-white rounded-lg shadow-md p-4 sticky bottom-4">
           <h2 className="text-lg font-semibold mb-4">✍️ 新しいメッセージ</h2>
           
           <form onSubmit={handleSubmitMessage} className="space-y-3">
-            {/* Name field - hide for admin */}
             {!isAdmin && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -224,7 +212,6 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
               </div>
             )}
 
-            {/* Message type */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 種類
@@ -242,7 +229,6 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
               </select>
             </div>
 
-            {/* Message text */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 メッセージ
@@ -256,8 +242,7 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
               />
             </div>
 
-            {/* ✅ UPDATED: Dynamic notification checkbox based on user type */}
-            {(isAdmin && item?.user_email) || (!isAdmin) ? (
+            {((isAdmin && item?.user_email) || !isAdmin) && (
               <div className={`flex items-center p-3 rounded-lg border-2 ${
                 isAdmin ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'
               }`}>
@@ -275,13 +260,15 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
                   }
                 </label>
               </div>
-            ) : isAdmin && !item?.user_email ? (
+            )}
+
+            {isAdmin && !item?.user_email && (
               <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-3">
                 <p className="text-xs text-yellow-800">
                   ⚠️ この製品には担当者メールアドレスが登録されていません
                 </p>
               </div>
-            ) : null}
+            )}
 
             <button
               type="submit"
@@ -300,7 +287,6 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
           </form>
         </div>
 
-        {/* Refresh Button */}
         <button
           onClick={fetchData}
           className="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
