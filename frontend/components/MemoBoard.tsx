@@ -15,11 +15,11 @@ const MESSAGE_TYPE_EMOJIS = {
 };
 
 const MESSAGE_TYPE_COLORS = {
-  'issue': 'bg-yellow-50 border-yellow-200',
-  'question': 'bg-blue-50 border-blue-200',
-  'fixed': 'bg-green-50 border-green-200',
-  'status_update': 'bg-gray-50 border-gray-200',
-  'general': 'bg-gray-50 border-gray-200'
+  'issue': 'border-yellow-400 bg-yellow-50',
+  'question': 'border-blue-400 bg-blue-50',
+  'fixed': 'border-green-400 bg-green-50',
+  'status_update': 'border-gray-400 bg-gray-50',
+  'general': 'border-gray-300 bg-white'
 };
 
 const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false }) => {
@@ -33,9 +33,21 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
   const [userName, setUserName] = useState('');
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('general');
-  const [sendNotification, setSendNotification] = useState(false);  // ✅ NEW
+  const [sendNotification, setSendNotification] = useState(false);
+  
+  // ✅ NEW: Check if current user is admin
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
+    // Check if user is admin (has auth token)
+    const authToken = localStorage.getItem('authToken');
+    setIsAdmin(!!authToken);
+    
+    // Set default name if admin
+    if (authToken) {
+      setUserName('管理者');
+    }
+    
     fetchData();
   }, [itemId]);
 
@@ -68,12 +80,14 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
         message: message.trim(),
         user_name: userName.trim() || '匿名',
         msg_type: messageType,
-        send_notification: sendNotification  // ✅ NEW
+        send_notification: sendNotification
       });
       
       setMessage('');
-      setUserName('');
-      setSendNotification(false);  // ✅ RESET
+      if (!isAdmin) {
+        setUserName(''); // Only clear username for non-admin users
+      }
+      setSendNotification(false);
       await fetchData();
     } catch (err) {
       setError('メッセージの投稿に失敗しました');
@@ -81,6 +95,11 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
     } finally {
       setPostLoading(false);
     }
+  };
+
+  // ✅ NEW: Helper function to determine if message is from admin
+  const isAdminMessage = (msg: Message) => {
+    return ['管理者', 'admin', 'Admin', 'Administrator'].includes(msg.user_name);
   };
 
   if (loading) {
@@ -115,39 +134,97 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-md mx-auto px-4 py-6">
-          <h1 className="text-2xl font-bold text-gray-900">🏷️ {item?.name}</h1>
-          <p className="text-gray-600 mt-1">📍 {item?.location}</p>
-          {isDirectAccess && (
-            <div className="mt-2">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                QRアクセス
-              </span>
+      <div className="bg-white shadow-sm sticky top-0 z-10">
+        <div className="max-w-2xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">🏷️ {item?.name}</h1>
+              <p className="text-sm text-gray-600">📍 {item?.location}</p>
             </div>
-          )}
+            {isAdmin && (
+              <span className="bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded">
+                管理者
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="max-w-md mx-auto p-4 space-y-6">
-        {/* Message Form */}
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <h2 className="text-lg font-semibold mb-4">💬 新しいメッセージ</h2>
+      <div className="max-w-2xl mx-auto p-4 space-y-6">
+        {/* ✅ NEW: Chat-Style Messages List */}
+        <div className="space-y-3">
+          <h2 className="text-sm font-medium text-gray-600 mb-4">💬 {messages.length} 件のメッセージ</h2>
           
-          <form onSubmit={handleSubmitMessage} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                お名前（任意）
-              </label>
-              <input
-                type="text"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                placeholder="匿名"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+          {messages.length === 0 ? (
+            <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+              <div className="text-gray-400 text-4xl mb-2">📭</div>
+              <p className="text-gray-600">まだメッセージがありません</p>
+              <p className="text-gray-500 text-sm">最初の投稿者になりましょう！</p>
             </div>
+          ) : (
+            messages.map((msg, index) => {
+              const isFromAdmin = isAdminMessage(msg);
+              const emoji = MESSAGE_TYPE_EMOJIS[msg.msg_type as keyof typeof MESSAGE_TYPE_EMOJIS] || '💬';
+              const colorClass = MESSAGE_TYPE_COLORS[msg.msg_type as keyof typeof MESSAGE_TYPE_COLORS] || 'border-gray-300 bg-white';
+              
+              return (
+                <div 
+                  key={index} 
+                  className={`flex ${isFromAdmin ? 'justify-start' : 'justify-end'}`}
+                >
+                  <div className={`max-w-[80%] ${isFromAdmin ? 'mr-auto' : 'ml-auto'}`}>
+                    {/* Sender name and time */}
+                    <div className={`flex items-center gap-2 mb-1 ${isFromAdmin ? '' : 'flex-row-reverse'}`}>
+                      <span className={`text-xs font-medium ${isFromAdmin ? 'text-purple-700' : 'text-blue-700'}`}>
+                        {isFromAdmin ? '👔' : '👤'} {msg.user_name}
+                      </span>
+                      <span className="text-xs text-gray-400">{msg.formatted_time}</span>
+                    </div>
+                    
+                    {/* Message bubble */}
+                    <div className={`
+                      rounded-2xl p-3 shadow-sm border-2
+                      ${isFromAdmin 
+                        ? `${colorClass} rounded-tl-none` 
+                        : 'bg-blue-500 text-white border-blue-500 rounded-tr-none'
+                      }
+                    `}>
+                      <div className="flex items-start gap-2">
+                        <span className="text-lg flex-shrink-0">{emoji}</span>
+                        <p className={`text-sm leading-relaxed break-words ${isFromAdmin ? 'text-gray-800' : 'text-white'}`}>
+                          {msg.message}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
 
+        {/* Message Form */}
+        <div className="bg-white rounded-lg shadow-md p-4 sticky bottom-4">
+          <h2 className="text-lg font-semibold mb-4">✍️ 新しいメッセージ</h2>
+          
+          <form onSubmit={handleSubmitMessage} className="space-y-3">
+            {/* Name field - hide for admin */}
+            {!isAdmin && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  お名前（任意）
+                </label>
+                <input
+                  type="text"
+                  value={userName}
+                  onChange={(e) => setUserName(e.target.value)}
+                  placeholder="匿名"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            )}
+
+            {/* Message type */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 種類
@@ -157,14 +234,15 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
                 onChange={(e) => setMessageType(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="general">一般</option>
-                <option value="issue">問題</option>
-                <option value="question">質問</option>
-                <option value="fixed">修理済み</option>
-                <option value="status_update">ステータス更新</option>
+                <option value="general">💬 一般</option>
+                <option value="issue">⚠️ 問題</option>
+                <option value="question">❓ 質問</option>
+                <option value="fixed">✅ 修理済み</option>
+                <option value="status_update">🔄 ステータス更新</option>
               </select>
             </div>
 
+            {/* Message text */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 メッセージ
@@ -172,78 +250,60 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
               <textarea
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="メッセージ、指示、質問、更新情報をここに書いてください..."
-                rows={4}
+                placeholder="メッセージを入力..."
+                rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
               />
             </div>
 
-            {/* ✅ NEW CHECKBOX */}
-            <div className="flex items-center bg-blue-50 p-3 rounded-lg border border-blue-200">
-              <input
-                type="checkbox"
-                id="sendNotification"
-                checked={sendNotification}
-                onChange={(e) => setSendNotification(e.target.checked)}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <label htmlFor="sendNotification" className="ml-2 text-sm font-medium text-gray-700">
-                📧 管理者にメール通知を送信する
-              </label>
-            </div>
+            {/* ✅ UPDATED: Dynamic notification checkbox based on user type */}
+            {(isAdmin && item?.user_email) || (!isAdmin) ? (
+              <div className={`flex items-center p-3 rounded-lg border-2 ${
+                isAdmin ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'
+              }`}>
+                <input
+                  type="checkbox"
+                  id="sendNotification"
+                  checked={sendNotification}
+                  onChange={(e) => setSendNotification(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor="sendNotification" className="ml-2 text-sm font-medium text-gray-700">
+                  {isAdmin 
+                    ? `📧 担当者にメール通知 (${item?.user_email})`
+                    : '📧 管理者にメール通知を送信する'
+                  }
+                </label>
+              </div>
+            ) : isAdmin && !item?.user_email ? (
+              <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-3">
+                <p className="text-xs text-yellow-800">
+                  ⚠️ この製品には担当者メールアドレスが登録されていません
+                </p>
+              </div>
+            ) : null}
 
             <button
               type="submit"
               disabled={!message.trim() || postLoading}
-              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {postLoading ? (
                 <span className="flex items-center justify-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  投稿中...
+                  送信中...
                 </span>
               ) : (
-                '📮 メッセージ投稿'
+                '📮 送信'
               )}
             </button>
           </form>
         </div>
 
-        {/* Messages List */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">📊 {messages.length} 件のメッセージ</h2>
-          
-          {messages.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-sm p-6 text-center">
-              <div className="text-gray-400 text-4xl mb-2">📭</div>
-              <p className="text-gray-600">まだメッセージがありません</p>
-              <p className="text-gray-500 text-sm">最初の投稿者になりましょう！</p>
-            </div>
-          ) : (
-            messages.map((msg, index) => {
-              const emoji = MESSAGE_TYPE_EMOJIS[msg.msg_type as keyof typeof MESSAGE_TYPE_EMOJIS] || '💬';
-              const colorClass = MESSAGE_TYPE_COLORS[msg.msg_type as keyof typeof MESSAGE_TYPE_COLORS] || 'bg-gray-50 border-gray-200';
-              
-              return (
-                <div key={index} className={`bg-white rounded-lg shadow-sm border p-4 ${colorClass}`}>
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-lg">{emoji}</span>
-                      <span className="font-medium text-gray-900">{msg.user_name}</span>
-                    </div>
-                    <span className="text-xs text-gray-500">{msg.formatted_time}</span>
-                  </div>
-                  <p className="text-gray-700 leading-relaxed">{msg.message}</p>
-                </div>
-              );
-            })
-          )}
-        </div>
-
         {/* Refresh Button */}
         <button
           onClick={fetchData}
-          className="w-full bg-gray-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-gray-700"
+          className="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
         >
           🔄 最新メッセージを取得
         </button>
