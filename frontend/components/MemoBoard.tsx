@@ -33,6 +33,7 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
   const [userName, setUserName] = useState('');
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('general');
+  const [sendNotification, setSendNotification] = useState(false);  // ✅ NEW
 
   useEffect(() => {
     fetchData();
@@ -66,12 +67,14 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
         item_id: itemId,
         message: message.trim(),
         user_name: userName.trim() || '匿名',
-        msg_type: messageType
+        msg_type: messageType,
+        send_notification: sendNotification  // ✅ NEW
       });
       
       setMessage('');
       setUserName('');
-      await fetchData(); // Refresh messages
+      setSendNotification(false);  // ✅ RESET
+      await fetchData();
     } catch (err) {
       setError('メッセージの投稿に失敗しました');
       console.error('Error posting message:', err);
@@ -173,6 +176,20 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
                 rows={4}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
               />
+            </div>
+
+            {/* ✅ NEW CHECKBOX */}
+            <div className="flex items-center bg-blue-50 p-3 rounded-lg border border-blue-200">
+              <input
+                type="checkbox"
+                id="sendNotification"
+                checked={sendNotification}
+                onChange={(e) => setSendNotification(e.target.checked)}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="sendNotification" className="ml-2 text-sm font-medium text-gray-700">
+                📧 管理者にメール通知を送信する
+              </label>
             </div>
 
             <button

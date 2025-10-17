@@ -19,10 +19,6 @@ from appwrite.exception import AppwriteException
 
 load_dotenv()
 
-app = FastAPI(title="Digital Memo Tag API with Appwrite", version="2.0.0")
-
-app = FastAPI(title="Digital Memo Tag API with Appwrite", version="2.0.0")
-
 class UnicodeJSONResponse(Response):
     media_type = "application/json"
     
@@ -45,7 +41,7 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https://.*\.vercel\.app",  # ✅ Allow all Vercel URLs
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_origins=[
         "http://localhost:3000",
         "https://digitalmemotag.vercel.app"
@@ -73,6 +69,7 @@ SUBSCRIPTIONS_COLLECTION = os.getenv("APPWRITE_SUBSCRIPTIONS_COLLECTION", "email
 # Resend configuration
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")  # ✅ NEW: Admin email
 
 # Initialize Appwrite
 client = Client()
@@ -93,6 +90,7 @@ print(f"✅ Appwrite Endpoint: {APPWRITE_ENDPOINT}")
 print(f"✅ Project ID: {APPWRITE_PROJECT_ID}")
 print(f"✅ Database ID: {DATABASE_ID}")
 print(f"✅ Resend: {'Configured' if RESEND_API_KEY else 'Not configured'}")
+print(f"✅ Admin Email: {ADMIN_EMAIL if ADMIN_EMAIL else 'Not configured'}")
 print("="*60)
 
 # Pydantic models
@@ -101,6 +99,7 @@ class ItemCreate(BaseModel):
     name: str
     location: str
     status: str = "Working"
+    user_email: Optional[EmailStr] = None  # ✅ NEW
 
 class Item(BaseModel):
     id: Optional[str] = None
@@ -108,6 +107,7 @@ class Item(BaseModel):
     name: str
     location: str
     status: str
+    user_email: Optional[str] = None  # ✅ NEW
     created_at: Optional[str] = None
 
 class MessageCreate(BaseModel):
@@ -156,21 +156,17 @@ def send_email_notification(to_email: str, item_name: str, item_id: str, message
         </head>
         <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
             <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-                <!-- Header -->
                 <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px 20px; text-align: center;">
                     <h1 style="margin: 0; font-size: 24px; font-weight: 600;">📱 デジタルメモタグシステム</h1>
                     <p style="margin: 10px 0 0 0; font-size: 14px; opacity: 0.95;">新しいメッセージが投稿されました</p>
                 </div>
                 
-                <!-- Content -->
                 <div style="padding: 30px 20px;">
-                    <!-- Alert Box -->
                     <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin-bottom: 25px; border-radius: 4px;">
-                        <p style="margin: 0; color: #92400e; font-weight: 600; font-size: 14px;">⚠️ 緊急メッセージ</p>
-                        <p style="margin: 5px 0 0 0; color: #92400e; font-size: 13px;">至急ご確認ください</p>
+                        <p style="margin: 0; color: #92400e; font-weight: 600; font-size: 14px;">⚠️ 新しいメッセージ</p>
+                        <p style="margin: 5px 0 0 0; color: #92400e; font-size: 13px;">ご確認ください</p>
                     </div>
                     
-                    <!-- Item Info Card -->
                     <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
                         <h2 style="margin: 0 0 15px 0; font-size: 16px; color: #374151; font-weight: 600;">📋 機器情報</h2>
                         <table style="width: 100%; border-collapse: collapse;">
@@ -193,15 +189,13 @@ def send_email_notification(to_email: str, item_name: str, item_id: str, message
                         </table>
                     </div>
                     
-                    <!-- Message Content -->
                     <div style="background-color: #ffffff; border: 2px solid #667eea; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
                         <h3 style="margin: 0 0 12px 0; font-size: 15px; color: #374151; font-weight: 600;">💬 メッセージ内容</h3>
                         <p style="margin: 0; color: #111827; line-height: 1.6; white-space: pre-wrap; font-size: 14px;">{message}</p>
                     </div>
                     
-                    <!-- Action Button -->
                     <div style="text-align: center; margin: 30px 0;">
-                        <a href="http://localhost:3000/memo/{item_id}" 
+                        <a href="https://digitalmemotag.vercel.app/memo/{item_id}" 
                            style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                                   color: white; padding: 14px 40px; text-decoration: none; border-radius: 8px; 
                                   font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px rgba(102, 126, 234, 0.4);">
@@ -209,7 +203,6 @@ def send_email_notification(to_email: str, item_name: str, item_id: str, message
                         </a>
                     </div>
                     
-                    <!-- Help Text -->
                     <div style="background-color: #eff6ff; border-radius: 8px; padding: 15px; margin-top: 25px;">
                         <p style="margin: 0; font-size: 13px; color: #1e40af; line-height: 1.5;">
                             💡 <strong>ヒント:</strong> このメールに返信することはできません。メッセージボードから返信してください。
@@ -217,28 +210,19 @@ def send_email_notification(to_email: str, item_name: str, item_id: str, message
                     </div>
                 </div>
                 
-                <!-- Footer -->
                 <div style="background-color: #f9fafb; padding: 25px 20px; text-align: center; border-top: 1px solid #e5e7eb;">
                     <p style="margin: 0 0 8px 0; font-size: 12px; color: #6b7280;">
                         このメールは自動送信されています
                     </p>
                     <p style="margin: 0 0 15px 0; font-size: 12px; color: #9ca3af;">
-                        デジタルメモタグシステム © 2024
+                        デジタルメモタグシステム © 2025
                     </p>
-                    <div style="margin-top: 15px;">
-                        <a href="#" style="color: #667eea; text-decoration: none; font-size: 11px; margin: 0 8px;">通知設定</a>
-                        <span style="color: #d1d5db;">•</span>
-                        <a href="#" style="color: #667eea; text-decoration: none; font-size: 11px; margin: 0 8px;">ヘルプ</a>
-                        <span style="color: #d1d5db;">•</span>
-                        <a href="#" style="color: #667eea; text-decoration: none; font-size: 11px; margin: 0 8px;">配信停止</a>
-                    </div>
                 </div>
             </div>
         </body>
         </html>
         """
         
-        # Send email using Resend
         params = {
             "from": RESEND_FROM_EMAIL,
             "to": [to_email],
@@ -271,7 +255,7 @@ class Database:
                 database_id=self.database_id,
                 collection_id=self.items_collection,
                 queries=[
-                    Query.order_desc('$createdAt'),  # ✅ FIXED: Use $createdAt
+                    Query.order_desc('$createdAt'),
                     Query.limit(100)
                 ]
             )
@@ -284,8 +268,9 @@ class Database:
                     'name': doc['name'],
                     'location': doc['location'],
                     'status': doc['status'],
-                    'created_at': doc.get('$createdAt'),  # ✅ FIXED: Use $createdAt
-                    'updated_at': doc.get('$updatedAt')   # ✅ FIXED: Use $updatedAt
+                    'user_email': doc.get('user_email'),  # ✅ NEW
+                    'created_at': doc.get('$createdAt'),
+                    'updated_at': doc.get('$updatedAt')
                 }
                 items.append(item)
             
@@ -317,7 +302,8 @@ class Database:
                     'name': doc['name'],
                     'location': doc['location'],
                     'status': doc['status'],
-                    'created_at': doc.get('$createdAt')  # ✅ FIXED: Use $createdAt
+                    'user_email': doc.get('user_email'),  # ✅ NEW
+                    'created_at': doc.get('$createdAt')
                 }
             return None
         except Exception as e:
@@ -328,7 +314,7 @@ class Database:
         """Get messages, optionally filtered by item_id"""
         try:
             queries = [
-                Query.order_desc('$createdAt'),  # ✅ FIXED: Use $createdAt
+                Query.order_desc('$createdAt'),
                 Query.limit(100)
             ]
             
@@ -349,7 +335,7 @@ class Database:
                     'message': doc['message'],
                     'user_name': doc.get('user_name', '匿名'),
                     'msg_type': doc.get('msg_type', 'general'),
-                    'created_at': doc.get('$createdAt')  # ✅ FIXED: Use $createdAt
+                    'created_at': doc.get('$createdAt')
                 }
                 messages.append(msg)
             
@@ -358,23 +344,29 @@ class Database:
             print(f"❌ Error getting messages: {e}")
             return []
     
-    def add_item(self, item_id, name, location, status="Working"):
+    def add_item(self, item_id, name, location, status="Working", user_email=None):  # ✅ NEW PARAMETER
         """Add new item"""
         try:
             existing = self.get_item_by_id(item_id)
             if existing:
                 return False, "Item ID already exists"
             
+            data = {
+                'item_id': item_id,
+                'name': name,
+                'location': location,
+                'status': status
+            }
+            
+            # ✅ NEW: Add user_email if provided
+            if user_email:
+                data['user_email'] = user_email
+            
             doc = self.databases.create_document(
                 database_id=self.database_id,
                 collection_id=self.items_collection,
                 document_id=ID.unique(),
-                data={
-                    'item_id': item_id,
-                    'name': name,
-                    'location': location,
-                    'status': status
-                }
+                data=data
             )
             
             print(f"✅ Added item: {item_id} - {name}")
@@ -395,6 +387,11 @@ class Database:
             if not message:
                 return False, "Message is empty"
             
+            # ✅ NEW: Get item details for email
+            item = self.get_item_by_id(item_id)
+            if not item:
+                return False, "Item not found"
+            
             doc = self.databases.create_document(
                 database_id=self.database_id,
                 collection_id=self.messages_collection,
@@ -409,9 +406,26 @@ class Database:
             
             print(f"✅ Message added: {item_id} by {user_name}")
             
+            # ✅ NEW: Send email notification if requested
             if send_notification:
-                print(f"📧 Sending notifications for item: {item_id}")
-                self.send_notifications_for_item(item_id, message, user_name)
+                item_name = item['name']
+                user_email = item.get('user_email')
+                
+                # Determine recipient based on who posted
+                if user_name in ['管理者', 'admin', 'Admin', 'Administrator']:
+                    # Admin posted - send to user
+                    if user_email:
+                        print(f"📧 Sending notification from admin to user: {user_email}")
+                        send_email_notification(user_email, item_name, item_id, message, user_name)
+                    else:
+                        print("⚠️ User email not configured for this item")
+                else:
+                    # User posted - send to admin
+                    if ADMIN_EMAIL:
+                        print(f"📧 Sending notification from user to admin: {ADMIN_EMAIL}")
+                        send_email_notification(ADMIN_EMAIL, item_name, item_id, message, user_name)
+                    else:
+                        print("⚠️ Admin email not configured")
             
             return True, "Message posted successfully"
             
@@ -655,7 +669,13 @@ def get_item(item_id: str):
 
 @app.post("/items")
 def create_item(item: ItemCreate, _: str = Depends(verify_admin_token)):
-    success, message = db.add_item(item.item_id, item.name, item.location, item.status)
+    success, message = db.add_item(
+        item.item_id, 
+        item.name, 
+        item.location, 
+        item.status,
+        item.user_email  # ✅ NEW
+    )
     if success:
         return {"success": True, "message": message}
     else:

@@ -15,6 +15,7 @@ const AdminDashboard: React.FC = () => {
   // Form state
   const [newItemName, setNewItemName] = useState('');
   const [newItemLocation, setNewItemLocation] = useState('');
+  const [newItemUserEmail, setNewItemUserEmail] = useState('');  // ✅ NEW
 
   useEffect(() => {
     fetchItems();
@@ -86,11 +87,13 @@ const AdminDashboard: React.FC = () => {
         item_id: itemId,
         name: newItemName.trim(),
         location: newItemLocation.trim() || '',
-        status: 'Working'
+        status: 'Working',
+        user_email: newItemUserEmail.trim() || undefined  // ✅ NEW
       });
       
       setNewItemName('');
       setNewItemLocation('');
+      setNewItemUserEmail('');  // ✅ NEW
       setShowAddForm(false);
       await fetchItems();
       alert('製品を追加しました');
@@ -167,7 +170,7 @@ const AdminDashboard: React.FC = () => {
         {showAddForm && (
           <div className="bg-white p-6 rounded-lg shadow-md mb-6">
             <h3 className="text-lg font-bold mb-4">新製品追加</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">製品名 *</label>
                 <input
@@ -187,6 +190,18 @@ const AdminDashboard: React.FC = () => {
                   className="w-full px-3 py-2 border rounded-lg"
                   placeholder="保管場所を入力"
                 />
+              </div>
+              {/* ✅ NEW EMAIL FIELD */}
+              <div>
+                <label className="block text-sm font-medium mb-2">担当者メールアドレス</label>
+                <input
+                  type="email"
+                  value={newItemUserEmail}
+                  onChange={(e) => setNewItemUserEmail(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="example@email.com"
+                />
+                <p className="text-xs text-gray-500 mt-1">メール通知を受け取る担当者のアドレス</p>
               </div>
             </div>
             <div className="mt-4 flex gap-2">
@@ -215,6 +230,7 @@ const AdminDashboard: React.FC = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">製品名</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">保管場所</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">担当者</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ステータス</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">QRコード</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
@@ -223,7 +239,7 @@ const AdminDashboard: React.FC = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                       製品がありません。新しい製品を追加してください。
                     </td>
                   </tr>
@@ -238,6 +254,16 @@ const AdminDashboard: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {item.location}
+                      </td>
+                      {/* ✅ NEW EMAIL COLUMN */}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {item.user_email ? (
+                          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                            📧 {item.user_email}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">未設定</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <span className={`px-2 py-1 rounded-full text-xs ${

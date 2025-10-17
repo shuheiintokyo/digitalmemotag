@@ -24,6 +24,7 @@ export interface Item {
   name: string;
   location: string;
   status: string;
+  user_email?: string;  // ✅ NEW
   created_at?: string;
 }
 
@@ -42,7 +43,7 @@ export interface MessageCreate {
   message: string;
   user_name: string;
   msg_type: string;
-  send_notification?: boolean;  // Add this field
+  send_notification?: boolean;
 }
 
 export interface ItemCreate {
@@ -50,6 +51,7 @@ export interface ItemCreate {
   name: string;
   location: string;
   status: string;
+  user_email?: string;  // ✅ NEW
 }
 
 // Auth API
@@ -96,7 +98,6 @@ export const createMessage = async (message: MessageCreate) => {
   return response.data;
 };
 
-// ADD THIS NEW FUNCTION:
 export const deleteMessage = async (messageId: string) => {
   const response = await api.delete(`/messages/${messageId}`);
   return response.data;
