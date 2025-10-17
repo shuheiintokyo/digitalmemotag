@@ -70,6 +70,11 @@ SUBSCRIPTIONS_COLLECTION = os.getenv("APPWRITE_SUBSCRIPTIONS_COLLECTION", "email
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")  # ✅ NEW: Admin email
+ADMIN_EMAIL_RAW = os.getenv("ADMIN_EMAIL", "")
+
+ADMIN_EMAIL_STRING = os.getenv("ADMIN_EMAIL", "")
+ADMIN_EMAILS = [email.strip() for email in ADMIN_EMAIL_STRING.split(',') if email.strip()]
+
 
 # Initialize Appwrite
 client = Client()
@@ -90,7 +95,12 @@ print(f"✅ Appwrite Endpoint: {APPWRITE_ENDPOINT}")
 print(f"✅ Project ID: {APPWRITE_PROJECT_ID}")
 print(f"✅ Database ID: {DATABASE_ID}")
 print(f"✅ Resend: {'Configured' if RESEND_API_KEY else 'Not configured'}")
-print(f"✅ Admin Email: {ADMIN_EMAIL if ADMIN_EMAIL else 'Not configured'}")
+if ADMIN_EMAILS:
+    print(f"✅ Admin Emails: {len(ADMIN_EMAILS)} configured")
+    for email in ADMIN_EMAILS:
+        print(f"   📧 {email}")
+else:
+    print("⚠️ Admin Email: Not configured")
 print("="*60)
 
 # Pydantic models
@@ -379,62 +389,66 @@ class Database:
             return False, str(e)
     
     def add_message(self, item_id, message, user_name, msg_type="general", send_notification=False):
-        """Add new message and optionally send notifications"""
-        try:
-            user_name = user_name.strip() if user_name and user_name.strip() else "匿名"
-            message = message.strip() if message else ""
+    """Add new message and optionally send notifications"""
+    try:
+        user_name = user_name.strip() if user_name and user_name.strip() else "匿名"
+        message = message.strip() if message else ""
+        
+        if not message:
+            return False, "Message is empty"
+        
+        # Get item details for email
+        item = self.get_item_by_id(item_id)
+        if not item:
+            return False, "Item not found"
+        
+        doc = self.databases.create_document(
+            database_id=self.database_id,
+            collection_id=self.messages_collection,
+            document_id=ID.unique(),
+            data={
+                'item_id': item_id,
+                'message': message,
+                'user_name': user_name,
+                'msg_type': msg_type
+            }
+        )
+        
+        print(f"✅ Message added: {item_id} by {user_name}")
+        
+        # ✅ UPDATED: Send email notification if requested
+        if send_notification:
+            item_name = item['name']
+            user_email = item.get('user_email')
             
-            if not message:
-                return False, "Message is empty"
-            
-            # ✅ NEW: Get item details for email
-            item = self.get_item_by_id(item_id)
-            if not item:
-                return False, "Item not found"
-            
-            doc = self.databases.create_document(
-                database_id=self.database_id,
-                collection_id=self.messages_collection,
-                document_id=ID.unique(),
-                data={
-                    'item_id': item_id,
-                    'message': message,
-                    'user_name': user_name,
-                    'msg_type': msg_type
-                }
-            )
-            
-            print(f"✅ Message added: {item_id} by {user_name}")
-            
-            # ✅ NEW: Send email notification if requested
-            if send_notification:
-                item_name = item['name']
-                user_email = item.get('user_email')
-                
-                # Determine recipient based on who posted
-                if user_name in ['管理者', 'admin', 'Admin', 'Administrator']:
-                    # Admin posted - send to user
-                    if user_email:
-                        print(f"📧 Sending notification from admin to user: {user_email}")
-                        send_email_notification(user_email, item_name, item_id, message, user_name)
-                    else:
-                        print("⚠️ User email not configured for this item")
+            # Determine recipient based on who posted
+            if user_name in ['管理者', 'admin', 'Admin', 'Administrator']:
+                # Admin posted - send to user
+                if user_email:
+                    print(f"📧 Sending notification from admin to user: {user_email}")
+                    send_email_notification(user_email, item_name, item_id, message, user_name)
                 else:
-                    # User posted - send to admin
-                    if ADMIN_EMAIL:
-                        print(f"📧 Sending notification from user to admin: {ADMIN_EMAIL}")
-                        send_email_notification(ADMIN_EMAIL, item_name, item_id, message, user_name)
-                    else:
-                        print("⚠️ Admin email not configured")
-            
-            return True, "Message posted successfully"
-            
-        except AppwriteException as e:
-            print(f"❌ Appwrite error adding message: {e.message}")
-            return False, f"Failed to post message: {e.message}"
-        except Exception as e:
-            print(f"❌ Error adding message: {e}")
-            return False, f"Unexpected error: {str(e)}"
+                    print("⚠️ User email not configured for this item")
+            else:
+                # User posted - send to ALL admins
+                if ADMIN_EMAILS:
+                    print(f"📧 Sending notification from user to {len(ADMIN_EMAILS)} admin(s)")
+                    success_count = 0
+                    for admin_email in ADMIN_EMAILS:
+                        if send_email_notification(admin_email, item_name, item_id, message, user_name):
+                            success_count += 1
+                    print(f"✅ Sent to {success_count}/{len(ADMIN_EMAILS)} admin(s)")
+                else:
+                    print("⚠️ No admin emails configured")
+        
+        return True, "Message posted successfully"
+        
+    except AppwriteException as e:
+        print(f"❌ Appwrite error adding message: {e.message}")
+        return False, f"Failed to post message: {e.message}"
+    except Exception as e:
+        print(f"❌ Error adding message: {e}")
+        return False, f"Unexpected error: {str(e)}"
     
     def send_notifications_for_item(self, item_id, message, user_name):
         """Send email notifications to subscribed users"""
