@@ -324,9 +324,9 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
           {/* Helper text - Hide on very small screens */}
           <div className="mt-2 text-xs text-gray-500 text-center hidden sm:block">
             <span className="inline-flex items-center gap-3">
-              <span>➤ 送信のみ</span>
+              <span>➤ 投稿のみ</span>
               {((isAdmin && item?.user_email) || !isAdmin) && (
-                <span>📧 送信+通知</span>
+                <span>📧 投稿+メール自動通知</span>
               )}
               <span>• Enterで送信</span>
             </span>
