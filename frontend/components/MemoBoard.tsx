@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getItem, getMessages, createMessage, Message, Item } from '../lib/api';
+import ProgressSlider from './ProgressSlider';
 
 interface MemoBoardProps {
   itemId: string;
@@ -92,6 +93,13 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
     }
   };
 
+  const handleProgressUpdate = async (newProgress: number) => {
+    if (item) {
+      setItem({ ...item, progress: newProgress });
+      await fetchData();
+    }
+  };
+
   const isAdminMessage = (msg: Message): boolean => {
     return ['管理者', 'admin', 'Admin', 'Administrator'].includes(msg.user_name);
   };
@@ -127,6 +135,7 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
 
   return (
     <div className="min-h-screen bg-gray-100">
+      {/* Header */}
       <div className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -144,6 +153,19 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
       </div>
 
       <div className="max-w-2xl mx-auto p-4 space-y-6">
+        {/* Progress Slider - Only show if item has total_pieces */}
+        {item && item.total_pieces && item.total_pieces > 0 && (
+          <div className="bg-white rounded-lg shadow-md p-4">
+            <ProgressSlider
+              itemId={item.item_id}
+              totalPieces={item.total_pieces}
+              currentProgress={item.progress || 0}
+              onProgressUpdate={handleProgressUpdate}
+            />
+          </div>
+        )}
+
+        {/* Messages Section */}
         <div className="space-y-3">
           <h2 className="text-sm font-medium text-gray-600 mb-4">💬 {messages.length} 件のメッセージ</h2>
           
@@ -193,6 +215,7 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
           )}
         </div>
 
+        {/* New Message Form */}
         <div className="bg-white rounded-lg shadow-md p-4 sticky bottom-4">
           <h2 className="text-lg font-semibold mb-4">✍️ 新しいメッセージ</h2>
           
@@ -287,6 +310,7 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
           </form>
         </div>
 
+        {/* Refresh Button */}
         <button
           onClick={fetchData}
           className="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
