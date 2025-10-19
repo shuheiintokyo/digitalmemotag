@@ -41,13 +41,15 @@ app = FastAPI(
 # CORS middleware - More flexible for development
 origins = [
     "http://localhost:3000",
-    "https://digitalmemotag.vercel.app"
+    "https://digitalmemotag.vercel.app",
+    "https://memotag.digital",  # Add this!
+    "https://www.memotag.digital"  # And this if you use www
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"https://.*\.vercel\.app",
-    allow_origins=origins,
+    allow_origins=origins,  # This is important!
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
