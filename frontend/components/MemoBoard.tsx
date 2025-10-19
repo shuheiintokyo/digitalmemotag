@@ -154,17 +154,17 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100">
+    <div className="flex flex-col h-screen bg-gray-100 overflow-hidden">
       {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-2xl mx-auto px-4 py-4">
+      <div className="bg-white shadow-sm flex-shrink-0">
+        <div className="max-w-2xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">🏷️ {item?.name}</h1>
-              <p className="text-sm text-gray-600">📍 {item?.location}</p>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">🏷️ {item?.name}</h1>
+              <p className="text-xs sm:text-sm text-gray-600 truncate">📍 {item?.location}</p>
             </div>
             {isAdmin && (
-              <span className="bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded">
+              <span className="bg-purple-100 text-purple-800 text-xs font-medium px-2 py-0.5 rounded ml-2 flex-shrink-0">
                 管理者
               </span>
             )}
@@ -174,7 +174,7 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
 
       {/* Scrollable Content Area */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto p-4 space-y-6">
+        <div className="max-w-2xl mx-auto px-3 sm:px-4 py-3 sm:py-4 space-y-4 sm:space-y-6">
           {/* Progress Slider */}
           {item && item.total_pieces && item.total_pieces > 0 && (
             <ProgressSlider
@@ -188,21 +188,21 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
 
           {/* Messages Section */}
           <div className="space-y-3 pb-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-medium text-gray-600">💬 {messages.length} 件のメッセージ</h2>
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <h2 className="text-xs sm:text-sm font-medium text-gray-600">💬 {messages.length} 件のメッセージ</h2>
               <button
                 onClick={fetchData}
-                className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                className="text-xs sm:text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
               >
                 🔄 更新
               </button>
             </div>
             
             {messages.length === 0 ? (
-              <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-                <div className="text-gray-400 text-4xl mb-2">📭</div>
-                <p className="text-gray-600">まだメッセージがありません</p>
-                <p className="text-gray-500 text-sm">最初の投稿者になりましょう！</p>
+              <div className="bg-white rounded-lg shadow-sm p-6 sm:p-8 text-center">
+                <div className="text-gray-400 text-3xl sm:text-4xl mb-2">📭</div>
+                <p className="text-sm sm:text-base text-gray-600">まだメッセージがありません</p>
+                <p className="text-xs sm:text-sm text-gray-500">最初の投稿者になりましょう！</p>
               </div>
             ) : (
               messages.map((msg, index) => {
@@ -213,7 +213,7 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
                     key={index} 
                     className={`flex ${isFromAdmin ? 'justify-start' : 'justify-end'}`}
                   >
-                    <div className={`max-w-[80%] ${isFromAdmin ? 'mr-auto' : 'ml-auto'}`}>
+                    <div className={`max-w-[85%] sm:max-w-[80%] ${isFromAdmin ? 'mr-auto' : 'ml-auto'}`}>
                       <div className={`flex items-center gap-2 mb-1 ${isFromAdmin ? '' : 'flex-row-reverse'}`}>
                         <span className={`text-xs font-medium ${isFromAdmin ? 'text-purple-700' : 'text-blue-700'}`}>
                           {isFromAdmin ? '👔' : '👤'} {msg.user_name}
@@ -242,9 +242,9 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
         </div>
       </div>
 
-      {/* Fixed Bottom Input Area - Like Twitter/Line */}
-      <div className="bg-white border-t border-gray-200 shadow-lg">
-        <div className="max-w-2xl mx-auto p-4">
+      {/* Fixed Bottom Input Area - Mobile Optimized */}
+      <div className="bg-white border-t border-gray-200 shadow-lg flex-shrink-0 safe-bottom">
+        <div className="max-w-2xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
           {/* Options Panel - Collapsible (Name only for non-admin) */}
           {showOptions && !isAdmin && (
             <div className="mb-3 animate-slideDown">
@@ -264,7 +264,7 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
               <button
                 type="button"
                 onClick={() => setShowOptions(!showOptions)}
-                className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors"
+                className="flex-shrink-0 w-9 h-9 sm:w-8 sm:h-8 rounded-full bg-gray-100 hover:bg-gray-200 active:bg-gray-300 flex items-center justify-center text-gray-600 transition-colors touch-manipulation"
                 title="名前を入力"
               >
                 {showOptions ? '✕' : '👤'}
@@ -276,9 +276,9 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
               value={message}
               onChange={handleTextareaChange}
               onKeyPress={handleKeyPress}
-              placeholder="メッセージを入力... (Shift+Enterで改行)"
+              placeholder="メッセージを入力..."
               rows={1}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-full resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 max-h-32 overflow-y-auto"
+              className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-full resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 max-h-32 overflow-y-auto"
               style={{ minHeight: '40px' }}
             />
 
@@ -290,7 +290,7 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
                 handleSubmitMessage(e as any);
               }}
               disabled={!message.trim() || postLoading}
-              className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors"
+              className="flex-shrink-0 w-10 h-10 sm:w-10 sm:h-10 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors touch-manipulation"
               title="送信"
             >
               {postLoading && !sendNotification ? (
@@ -309,7 +309,7 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
                   setTimeout(() => handleSubmitMessage(e as any), 0);
                 }}
                 disabled={!message.trim() || postLoading}
-                className="flex-shrink-0 w-10 h-10 rounded-full bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors"
+                className="flex-shrink-0 w-10 h-10 sm:w-10 sm:h-10 rounded-full bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors touch-manipulation"
                 title={isAdmin ? "送信 + 担当者に通知" : "送信 + 管理者に通知"}
               >
                 {postLoading && sendNotification ? (
@@ -321,8 +321,8 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
             )}
           </div>
 
-          {/* Helper text */}
-          <div className="mt-2 text-xs text-gray-500 text-center">
+          {/* Helper text - Hide on very small screens */}
+          <div className="mt-2 text-xs text-gray-500 text-center hidden sm:block">
             <span className="inline-flex items-center gap-3">
               <span>➤ 送信のみ</span>
               {((isAdmin && item?.user_email) || !isAdmin) && (

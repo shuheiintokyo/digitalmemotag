@@ -326,25 +326,33 @@ const AdminDashboard: React.FC = () => {
                             {itemStatus}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                          <button
-                            onClick={() => handleGenerateQRCode(item)}
-                            className="text-green-600 hover:text-green-900"
-                          >
-                            QR
-                          </button>
-                          <button
-                            onClick={() => handleViewMessages(item)}
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            メッセージ
-                          </button>
-                          <button
-                            onClick={() => setItemToDelete(item)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            削除
-                          </button>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleGenerateQRCode(item)}
+                              className="px-3 py-1.5 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors flex items-center gap-1 text-xs font-medium"
+                              title="QRコード生成"
+                            >
+                              <span>📱</span>
+                              <span>QR</span>
+                            </button>
+                            <button
+                              onClick={() => handleViewMessages(item)}
+                              className="px-3 py-1.5 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center gap-1 text-xs font-medium"
+                              title="メッセージボードを開く"
+                            >
+                              <span>💬</span>
+                              <span>メッセージ</span>
+                            </button>
+                            <button
+                              onClick={() => setItemToDelete(item)}
+                              className="px-3 py-1.5 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors flex items-center gap-1 text-xs font-medium"
+                              title="削除"
+                            >
+                              <span>🗑️</span>
+                              <span>削除</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
