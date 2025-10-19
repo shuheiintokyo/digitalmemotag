@@ -1,17 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { getItems, createItem, deleteItem, Item } from '../lib/api';
+import { getItems, createItem, deleteItem, updateItemProgress, Item } from '../lib/api';
 import QRCode from 'qrcode';
 import ProgressSlider from './ProgressSlider';
 
+interface ExtendedItem extends Item {
+  total_pieces?: number;
+  target_date?: string;
+  progress?: number;
+}
+
 const AdminDashboard: React.FC = () => {
   const router = useRouter();
-  const [items, setItems] = useState<Item[]>([]);
+  const [items, setItems] = useState<ExtendedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [qrCodes, setQrCodes] = useState<{ [key: string]: string }>({});
-  const [selectedQRItem, setSelectedQRItem] = useState<Item | null>(null);
-  const [itemToDelete, setItemToDelete] = useState<Item | null>(null);
+  const [selectedQRItem, setSelectedQRItem] = useState<ExtendedItem | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<ExtendedItem | null>(null);
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
 
   // Form state
@@ -87,16 +93,25 @@ const AdminDashboard: React.FC = () => {
 
     try {
       const itemId = generateItemId();
-      await createItem({
+      const itemData: any = {
         item_id: itemId,
         name: newItemName.trim(),
         location: newItemLocation.trim() || '',
-        status: 'Working',
-        user_email: newItemUserEmail.trim() || undefined,
-        total_pieces: newItemTotalPieces ? parseInt(newItemTotalPieces) : undefined,
-        target_date: newItemTargetDate || undefined,
-        progress: 0
-      });
+        status: 'Working'
+      };
+
+      if (newItemUserEmail.trim()) {
+        itemData.user_email = newItemUserEmail.trim();
+      }
+      if (newItemTotalPieces) {
+        itemData.total_pieces = parseInt(newItemTotalPieces);
+      }
+      if (newItemTargetDate) {
+        itemData.target_date = newItemTargetDate;
+      }
+      itemData.progress = 0;
+
+      await createItem(itemData);
       
       setNewItemName('');
       setNewItemLocation('');
@@ -131,19 +146,24 @@ const AdminDashboard: React.FC = () => {
     router.push('/login');
   };
 
-  const handleViewMessages = (item: Item) => {
+  const handleViewMessages = (item: ExtendedItem) => {
     router.push(`/memo/${item.item_id}`);
   };
 
   const handleProgressUpdate = async (itemId: string, progress: number) => {
-    // Update the local state
-    setItems(prevItems => 
-      prevItems.map(item => 
-        item.item_id === itemId 
-          ? { ...item, progress } 
-          : item
-      )
-    );
+    try {
+      await updateItemProgress(itemId, progress);
+      // Update the local state
+      setItems(prevItems => 
+        prevItems.map(item => 
+          item.item_id === itemId 
+            ? { ...item, progress } 
+            : item
+        )
+      );
+    } catch (error) {
+      console.error('Error updating progress:', error);
+    }
   };
 
   if (loading) {
@@ -222,7 +242,6 @@ const AdminDashboard: React.FC = () => {
                 />
                 <p className="text-xs text-gray-500 mt-1">メール通知を受け取る担当者のアドレス</p>
               </div>
-              {/* NEW FIELDS */}
               <div>
                 <label className="block text-sm font-medium mb-2">総数量（オプション）</label>
                 <input
@@ -287,7 +306,7 @@ const AdminDashboard: React.FC = () => {
                   </tr>
                 ) : (
                   items.map((item) => (
-                    <React.Fragment key={item.id}>
+                    <React.Fragment key={item.item_id}>
                       <tr className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                           {item.item_id}
@@ -317,12 +336,14 @@ const AdminDashboard: React.FC = () => {
                           {item.target_date ? new Date(item.target_date).toLocaleDateString('ja-JP') : '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                          <button
-                            onClick={() => setExpandedItem(expandedItem === item.item_id ? null : item.item_id)}
-                            className="text-purple-600 hover:text-purple-900"
-                          >
-                            {expandedItem === item.item_id ? '閉じる' : '詳細'}
-                          </button>
+                          {item.total_pieces && (
+                            <button
+                              onClick={() => setExpandedItem(expandedItem === item.item_id ? null : item.item_id)}
+                              className="text-purple-600 hover:text-purple-900"
+                            >
+                              {expandedItem === item.item_id ? '閉じる' : '詳細'}
+                            </button>
+                          )}
                           <button
                             onClick={() => handleViewMessages(item)}
                             className="text-blue-600 hover:text-blue-900"
@@ -347,3 +368,92 @@ const AdminDashboard: React.FC = () => {
                       {expandedItem === item.item_id && item.total_pieces && (
                         <tr>
                           <td colSpan={6} className="px-6 py-4 bg-gray-50">
+                            <ProgressSlider 
+                              itemId={item.item_id}
+                              totalPieces={item.total_pieces}
+                              currentProgress={item.progress || 0}
+                              onProgressUpdate={(progress) => handleProgressUpdate(item.item_id, progress)}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* QR Code Modal */}
+      {selectedQRItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full">
+            <div className="text-center">
+              <h3 className="text-lg font-bold mb-4">{selectedQRItem.name}</h3>
+              <p className="text-sm text-gray-600 mb-4">ID: {selectedQRItem.item_id}</p>
+              {qrCodes[selectedQRItem.item_id] && (
+                <div className="mb-4">
+                  <img 
+                    src={qrCodes[selectedQRItem.item_id]} 
+                    alt="QR Code" 
+                    className="mx-auto border rounded" 
+                  />
+                </div>
+              )}
+              <div className="flex gap-2 justify-center">
+                <button
+                  onClick={() => downloadQRCode(selectedQRItem.item_id, selectedQRItem.name)}
+                  className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600"
+                >
+                  ダウンロード
+                </button>
+                <button
+                  onClick={() => setSelectedQRItem(null)}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+                >
+                  閉じる
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {itemToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full">
+            <div className="text-center">
+              <h3 className="text-lg font-bold mb-4">削除確認</h3>
+              <p className="text-sm text-gray-600 mb-2">以下の製品を削除してもよろしいですか？</p>
+              <p className="text-sm font-medium mb-4">
+                {itemToDelete.name} (ID: {itemToDelete.item_id})
+              </p>
+              <p className="text-xs text-red-600 mb-6">
+                ※ この操作は取り消せません
+              </p>
+              <div className="flex gap-2 justify-center">
+                <button
+                  onClick={handleDeleteItem}
+                  className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
+                >
+                  削除する
+                </button>
+                <button
+                  onClick={() => setItemToDelete(null)}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+                >
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default AdminDashboard;
