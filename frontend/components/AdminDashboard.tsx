@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { getItems, createItem, deleteItem, Item } from '../lib/api';
+import QRCode from 'qrcode';
 
 const AdminDashboard: React.FC = () => {
   const router = useRouter();
@@ -8,6 +9,9 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<Item | null>(null);
+  const [qrCodeItem, setQrCodeItem] = useState<Item | null>(null);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
   // Form state
   const [newItemName, setNewItemName] = useState('');
@@ -102,6 +106,35 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  const handleGenerateQRCode = async (item: Item) => {
+    try {
+      const url = `${window.location.origin}/memo/${item.item_id}`;
+      const qrDataUrl = await QRCode.toDataURL(url, {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      });
+      
+      setQrCodeDataUrl(qrDataUrl);
+      setQrCodeItem(item);
+    } catch (error) {
+      console.error('Error generating QR code:', error);
+      alert('QRコードの生成に失敗しました');
+    }
+  };
+
+  const handleDownloadQRCode = () => {
+    if (!qrCodeDataUrl || !qrCodeItem) return;
+
+    const link = document.createElement('a');
+    link.download = `QR_${qrCodeItem.name}_${qrCodeItem.item_id}.png`;
+    link.href = qrCodeDataUrl;
+    link.click();
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('authToken');
     router.push('/login');
@@ -109,6 +142,27 @@ const AdminDashboard: React.FC = () => {
 
   const handleViewMessages = (item: Item) => {
     router.push(`/memo/${item.item_id}`);
+  };
+
+  const getStatusFromProgress = (progress?: number): string => {
+    if (!progress && progress !== 0) return 'Working';
+    if (progress === 100) return 'Completed';
+    if (progress >= 75) return 'Working';
+    if (progress < 25) return 'Delayed';
+    return 'Working';
+  };
+
+  const getStatusColor = (status: string): string => {
+    switch (status) {
+      case 'Working':
+        return 'bg-blue-100 text-blue-800';
+      case 'Completed':
+        return 'bg-green-100 text-green-800';
+      case 'Delayed':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
   };
 
   if (loading) {
@@ -235,6 +289,7 @@ const AdminDashboard: React.FC = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">製品名</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">保管場所</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">担当者</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">進捗</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ステータス</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
                 </tr>
@@ -242,56 +297,96 @@ const AdminDashboard: React.FC = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                       製品がありません。新しい製品を追加してください。
                     </td>
                   </tr>
                 ) : (
-                  items.map((item) => (
-                    <tr key={item.item_id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {item.item_id}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {item.name}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {item.location}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {item.user_email || '未設定'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <span className={`px-2 py-1 rounded-full text-xs ${
-                          item.status === 'Working' ? 'bg-blue-100 text-blue-800' :
-                          item.status === 'Completed' ? 'bg-green-100 text-green-800' :
-                          item.status === 'Delayed' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {item.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                        <button
-                          onClick={() => handleViewMessages(item)}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          メッセージ
-                        </button>
-                        <button
-                          onClick={() => setItemToDelete(item)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          削除
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  items.map((item) => {
+                    const itemStatus = getStatusFromProgress(item.progress);
+                    return (
+                      <tr key={item.item_id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {item.item_id}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {item.name}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {item.location}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {item.user_email || '未設定'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {item.progress !== undefined ? `${item.progress}%` : '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(itemStatus)}`}>
+                            {itemStatus}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                          <button
+                            onClick={() => handleGenerateQRCode(item)}
+                            className="text-green-600 hover:text-green-900"
+                          >
+                            QR
+                          </button>
+                          <button
+                            onClick={() => handleViewMessages(item)}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            メッセージ
+                          </button>
+                          <button
+                            onClick={() => setItemToDelete(item)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            削除
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
           </div>
         </div>
+
+        {/* QR Code Modal */}
+        {qrCodeItem && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+              <div className="text-center">
+                <h3 className="text-lg font-bold mb-4">QRコード</h3>
+                <div className="mb-4">
+                  <img src={qrCodeDataUrl} alt="QR Code" className="mx-auto mb-2" />
+                  <p className="text-sm font-medium text-gray-900">{qrCodeItem.name}</p>
+                  <p className="text-xs text-gray-500">ID: {qrCodeItem.item_id}</p>
+                </div>
+                <div className="flex gap-2 justify-center">
+                  <button
+                    onClick={handleDownloadQRCode}
+                    className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600"
+                  >
+                    ダウンロード
+                  </button>
+                  <button
+                    onClick={() => {
+                      setQrCodeItem(null);
+                      setQrCodeDataUrl('');
+                    }}
+                    className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+                  >
+                    閉じる
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Delete Confirmation Modal */}
         {itemToDelete && (

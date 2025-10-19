@@ -93,7 +93,14 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
   };
 
   const handlePiecesInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(e.target.value) || 0;
+    const inputValue = e.target.value;
+    if (inputValue === '') {
+      setCompletedPieces(0);
+      setProgress(0);
+      return;
+    }
+    const value = parseInt(inputValue);
+    if (isNaN(value)) return;
     const clampedValue = Math.max(0, Math.min(totalPieces, value));
     setCompletedPieces(clampedValue);
     const percentage = Math.round((clampedValue / totalPieces) * 100);
@@ -101,7 +108,14 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
   };
 
   const handlePercentageInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(e.target.value) || 0;
+    const inputValue = e.target.value;
+    if (inputValue === '') {
+      setProgress(0);
+      setCompletedPieces(0);
+      return;
+    }
+    const value = parseInt(inputValue);
+    if (isNaN(value)) return;
     const clampedValue = Math.max(0, Math.min(100, value));
     setProgress(clampedValue);
     setCompletedPieces(Math.round((clampedValue / 100) * totalPieces));
