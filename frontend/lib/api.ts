@@ -27,9 +27,9 @@ export interface Item {
   location: string;
   status: string;
   user_email?: string;
-  total_pieces?: number;    // NEW
-  target_date?: string;      // NEW
-  progress?: number;         // NEW (0-100)
+  total_pieces?: number;
+  target_date?: string;
+  progress?: number; // 0-100
   created_at?: string;
 }
 
@@ -57,9 +57,9 @@ export interface ItemCreate {
   location: string;
   status: string;
   user_email?: string;
-  total_pieces?: number;    // NEW
-  target_date?: string;      // NEW
-  progress?: number;         // NEW
+  total_pieces?: number;
+  target_date?: string;
+  progress?: number;
 }
 
 // Auth API
@@ -89,11 +89,9 @@ export const updateItemStatus = async (itemId: string, status: string) => {
   return response.data;
 };
 
-// NEW: Update item progress
+// FIXED: Update item progress - sends progress in query param as backend expects
 export const updateItemProgress = async (itemId: string, progress: number) => {
-  const response = await api.patch(`/items/${itemId}/progress`, null, {
-    params: { progress }
-  });
+  const response = await api.patch(`/items/${itemId}/progress?progress=${progress}`);
   return response.data;
 };
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getItem, getMessages, createMessage, Message, Item } from '../lib/api';
+import { getItem, getMessages, createMessage, updateItemProgress, Message, Item } from '../lib/api';
 import ProgressSlider from './ProgressSlider';
 
 interface MemoBoardProps {
@@ -94,9 +94,16 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
   };
 
   const handleProgressUpdate = async (newProgress: number) => {
-    if (item) {
-      setItem({ ...item, progress: newProgress });
-      await fetchData();
+    try {
+      await updateItemProgress(itemId, newProgress);
+      // Update local state
+      if (item) {
+        setItem({ ...item, progress: newProgress });
+      }
+      console.log('Progress updated successfully:', newProgress);
+    } catch (err) {
+      console.error('Failed to update progress:', err);
+      setError('進捗の更新に失敗しました');
     }
   };
 
@@ -155,14 +162,13 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
       <div className="max-w-2xl mx-auto p-4 space-y-6">
         {/* Progress Slider - Only show if item has total_pieces */}
         {item && item.total_pieces && item.total_pieces > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-4">
-            <ProgressSlider
-              itemId={item.item_id}
-              totalPieces={item.total_pieces}
-              currentProgress={item.progress || 0}
-              onProgressUpdate={handleProgressUpdate}
-            />
-          </div>
+          <ProgressSlider
+            itemId={item.item_id}
+            totalPieces={item.total_pieces}
+            currentProgress={item.progress || 0}
+            targetDate={item.target_date}
+            onProgressUpdate={handleProgressUpdate}
+          />
         )}
 
         {/* Messages Section */}

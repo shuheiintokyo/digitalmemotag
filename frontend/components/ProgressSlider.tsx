@@ -1,11 +1,10 @@
-// Save this file as: /frontend/components/ProgressSlider.tsx
-
 import React, { useState, useEffect, useRef } from 'react';
 
 interface ProgressSliderProps {
   itemId: string;
   totalPieces: number;
   currentProgress: number;
+  targetDate?: string;
   onProgressUpdate?: (progress: number) => void;
 }
 
@@ -13,6 +12,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
   itemId, 
   totalPieces, 
   currentProgress = 0,
+  targetDate,
   onProgressUpdate 
 }) => {
   const [progress, setProgress] = useState(currentProgress);
@@ -22,36 +22,41 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
   const sliderRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Update local state when prop changes
+  useEffect(() => {
+    setProgress(currentProgress);
+    setCompletedPieces(Math.round((currentProgress / 100) * totalPieces));
+  }, [currentProgress, totalPieces]);
+
   // Auto-save after 3 seconds of inactivity
   useEffect(() => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
 
-    saveTimeoutRef.current = setTimeout(() => {
-      if (!isDragging && progress !== currentProgress) {
+    if (!isDragging && progress !== currentProgress) {
+      saveTimeoutRef.current = setTimeout(() => {
         saveProgress();
-      }
-    }, 3000);
+      }, 3000);
+    }
 
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [progress, isDragging]);
+  }, [progress, isDragging, currentProgress]);
 
   const saveProgress = async () => {
     try {
       setIsSaving(true);
-      // API call to save progress would go here
-      // For now, just call the callback
       if (onProgressUpdate) {
-        onProgressUpdate(progress);
+        await onProgressUpdate(progress);
       }
-      console.log('Progress saved:', progress);
+      console.log('✅ Progress saved to Appwrite:', progress);
     } catch (error) {
-      console.error('Failed to save progress:', error);
+      console.error('❌ Failed to save progress:', error);
+      alert('進捗の保存に失敗しました');
     } finally {
       setIsSaving(false);
     }
@@ -91,8 +96,8 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
     const value = parseInt(e.target.value) || 0;
     const clampedValue = Math.max(0, Math.min(totalPieces, value));
     setCompletedPieces(clampedValue);
-    const percentage = (clampedValue / totalPieces) * 100;
-    setProgress(Math.round(percentage));
+    const percentage = Math.round((clampedValue / totalPieces) * 100);
+    setProgress(percentage);
   };
 
   const handlePercentageInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,20 +136,47 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
     };
   }, [isDragging]);
 
+  // Format target date
+  const formatTargetDate = (dateStr?: string) => {
+    if (!dateStr) return null;
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('ja-JP', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const formattedTargetDate = formatTargetDate(targetDate);
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6 mb-4">
       <div className="flex justify-between items-center mb-2">
         <h3 className="text-lg font-semibold">📊 進捗状況</h3>
         {isSaving && (
-          <span className="text-sm text-green-600 animate-pulse">保存中...</span>
+          <span className="text-sm text-green-600 animate-pulse flex items-center gap-1">
+            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-600"></div>
+            保存中...
+          </span>
         )}
       </div>
+
+      {/* Target Date Display */}
+      {formattedTargetDate && (
+        <div className="mb-4 text-sm text-gray-600">
+          🎯 目標完了日: <span className="font-medium">{formattedTargetDate}</span>
+        </div>
+      )}
 
       {/* Progress Bar */}
       <div className="mb-6">
         <div className="flex justify-between text-sm text-gray-600 mb-2">
           <span>0%</span>
-          <span className="font-bold text-lg">{progress}%</span>
+          <span className="font-bold text-lg text-blue-600">{progress}%</span>
           <span>100%</span>
         </div>
         
@@ -156,19 +188,37 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
         >
           {/* Progress Fill */}
           <div 
-            className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all duration-150"
+            className={`absolute top-0 left-0 h-full rounded-full transition-all duration-150 ${
+              progress === 100 ? 'bg-gradient-to-r from-green-400 to-green-600' :
+              progress >= 75 ? 'bg-gradient-to-r from-blue-400 to-blue-600' :
+              progress >= 50 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' :
+              progress >= 25 ? 'bg-gradient-to-r from-orange-400 to-orange-600' :
+              'bg-gradient-to-r from-red-400 to-red-600'
+            }`}
             style={{ width: `${progress}%` }}
           />
           
           {/* Draggable Handle */}
           <div
-            className={`absolute top-1/2 transform -translate-y-1/2 w-8 h-8 bg-white border-4 border-blue-500 rounded-full shadow-lg transition-transform ${
+            className={`absolute top-1/2 transform -translate-y-1/2 w-8 h-8 bg-white border-4 rounded-full shadow-lg transition-transform ${
               isDragging ? 'scale-125' : 'hover:scale-110'
+            } ${
+              progress === 100 ? 'border-green-500' :
+              progress >= 75 ? 'border-blue-500' :
+              progress >= 50 ? 'border-yellow-500' :
+              progress >= 25 ? 'border-orange-500' :
+              'border-red-500'
             }`}
             style={{ left: `calc(${progress}% - 16px)` }}
           >
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-2 h-2 bg-blue-500 rounded-full" />
+              <div className={`w-2 h-2 rounded-full ${
+                progress === 100 ? 'bg-green-500' :
+                progress >= 75 ? 'bg-blue-500' :
+                progress >= 50 ? 'bg-yellow-500' :
+                progress >= 25 ? 'bg-orange-500' :
+                'bg-red-500'
+              }`} />
             </div>
           </div>
         </div>
@@ -215,7 +265,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
       <div className="mt-4 p-3 bg-gray-50 rounded-lg">
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-600">ステータス:</span>
-          <span className={`font-semibold ${
+          <span className={`font-semibold text-sm ${
             progress === 100 ? 'text-green-600' : 
             progress >= 75 ? 'text-blue-600' : 
             progress >= 50 ? 'text-yellow-600' : 
@@ -230,6 +280,13 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
           </span>
         </div>
       </div>
+
+      {/* Auto-save indicator */}
+      {progress !== currentProgress && !isDragging && (
+        <div className="mt-3 text-xs text-gray-500 text-center">
+          💾 3秒後に自動保存されます
+        </div>
+      )}
     </div>
   );
 };
