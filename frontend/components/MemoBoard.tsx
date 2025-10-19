@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getItem, getMessages, createMessage, updateItemProgress, Message, Item } from '../lib/api';
 import ProgressSlider from './ProgressSlider';
 
@@ -6,22 +6,6 @@ interface MemoBoardProps {
   itemId: string;
   isDirectAccess?: boolean;
 }
-
-const MESSAGE_TYPE_EMOJIS: Record<string, string> = {
-  'general': '💬',
-  'issue': '⚠️',
-  'fixed': '✅', 
-  'question': '❓',
-  'status_update': '🔄'
-};
-
-const MESSAGE_TYPE_COLORS: Record<string, string> = {
-  'issue': 'border-yellow-400 bg-yellow-50',
-  'question': 'border-blue-400 bg-blue-50',
-  'fixed': 'border-green-400 bg-green-50',
-  'status_update': 'border-gray-400 bg-gray-50',
-  'general': 'border-gray-300 bg-white'
-};
 
 const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false }) => {
   const [item, setItem] = useState<Item | null>(null);
@@ -32,9 +16,12 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
   
   const [userName, setUserName] = useState('');
   const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState('general');
   const [sendNotification, setSendNotification] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     const authToken = localStorage.getItem('authToken');
@@ -47,6 +34,15 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
     fetchData();
   }, [itemId]);
 
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -55,7 +51,8 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
         getMessages(itemId)
       ]);
       setItem(itemData);
-      setMessages(messagesData);
+      // Reverse the messages so newest appear at bottom
+      setMessages(messagesData.reverse());
       setError(null);
     } catch (err) {
       setError('アイテムまたはメッセージの取得に失敗しました');
@@ -75,16 +72,19 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
         item_id: itemId,
         message: message.trim(),
         user_name: userName.trim() || '匿名',
-        msg_type: messageType,
+        msg_type: 'general',
         send_notification: sendNotification
       });
       
       setMessage('');
-      if (!isAdmin) {
-        setUserName('');
-      }
       setSendNotification(false);
+      setShowOptions(false);
       await fetchData();
+      
+      // Reset textarea height
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
     } catch (err) {
       setError('メッセージの投稿に失敗しました');
       console.error('Error posting message:', err);
@@ -96,7 +96,6 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
   const handleProgressUpdate = async (newProgress: number) => {
     try {
       await updateItemProgress(itemId, newProgress);
-      // Update local state
       if (item) {
         setItem({ ...item, progress: newProgress });
       }
@@ -104,6 +103,20 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
     } catch (err) {
       console.error('Failed to update progress:', err);
       setError('進捗の更新に失敗しました');
+    }
+  };
+
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setMessage(e.target.value);
+    // Auto-resize textarea
+    e.target.style.height = 'auto';
+    e.target.style.height = e.target.scrollHeight + 'px';
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmitMessage(e);
     }
   };
 
@@ -141,9 +154,9 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="flex flex-col h-screen bg-gray-100">
       {/* Header */}
-      <div className="bg-white shadow-sm sticky top-0 z-10">
+      <div className="bg-white shadow-sm">
         <div className="max-w-2xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
@@ -159,170 +172,152 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto p-4 space-y-6">
-        {/* Progress Slider - Only show if item has total_pieces */}
-        {item && item.total_pieces && item.total_pieces > 0 && (
-          <ProgressSlider
-            itemId={item.item_id}
-            totalPieces={item.total_pieces}
-            currentProgress={item.progress || 0}
-            targetDate={item.target_date}
-            onProgressUpdate={handleProgressUpdate}
-          />
-        )}
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-2xl mx-auto p-4 space-y-6">
+          {/* Progress Slider */}
+          {item && item.total_pieces && item.total_pieces > 0 && (
+            <ProgressSlider
+              itemId={item.item_id}
+              totalPieces={item.total_pieces}
+              currentProgress={item.progress || 0}
+              targetDate={item.target_date}
+              onProgressUpdate={handleProgressUpdate}
+            />
+          )}
 
-        {/* Messages Section */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-medium text-gray-600 mb-4">💬 {messages.length} 件のメッセージ</h2>
-          
-          {messages.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-              <div className="text-gray-400 text-4xl mb-2">📭</div>
-              <p className="text-gray-600">まだメッセージがありません</p>
-              <p className="text-gray-500 text-sm">最初の投稿者になりましょう！</p>
+          {/* Messages Section */}
+          <div className="space-y-3 pb-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-medium text-gray-600">💬 {messages.length} 件のメッセージ</h2>
+              <button
+                onClick={fetchData}
+                className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+              >
+                🔄 更新
+              </button>
             </div>
-          ) : (
-            messages.map((msg, index) => {
-              const isFromAdmin = isAdminMessage(msg);
-              const emoji = MESSAGE_TYPE_EMOJIS[msg.msg_type] || '💬';
-              const colorClass = MESSAGE_TYPE_COLORS[msg.msg_type] || 'border-gray-300 bg-white';
-              
-              return (
-                <div 
-                  key={index} 
-                  className={`flex ${isFromAdmin ? 'justify-start' : 'justify-end'}`}
-                >
-                  <div className={`max-w-[80%] ${isFromAdmin ? 'mr-auto' : 'ml-auto'}`}>
-                    <div className={`flex items-center gap-2 mb-1 ${isFromAdmin ? '' : 'flex-row-reverse'}`}>
-                      <span className={`text-xs font-medium ${isFromAdmin ? 'text-purple-700' : 'text-blue-700'}`}>
-                        {isFromAdmin ? '👔' : '👤'} {msg.user_name}
-                      </span>
-                      <span className="text-xs text-gray-400">{msg.formatted_time}</span>
-                    </div>
-                    
-                    <div className={`
-                      rounded-2xl p-3 shadow-sm border-2
-                      ${isFromAdmin 
-                        ? `${colorClass} rounded-tl-none` 
-                        : 'bg-blue-500 text-white border-blue-500 rounded-tr-none'
-                      }
-                    `}>
-                      <div className="flex items-start gap-2">
-                        <span className="text-lg flex-shrink-0">{emoji}</span>
-                        <p className={`text-sm leading-relaxed break-words ${isFromAdmin ? 'text-gray-800' : 'text-white'}`}>
+            
+            {messages.length === 0 ? (
+              <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+                <div className="text-gray-400 text-4xl mb-2">📭</div>
+                <p className="text-gray-600">まだメッセージがありません</p>
+                <p className="text-gray-500 text-sm">最初の投稿者になりましょう！</p>
+              </div>
+            ) : (
+              messages.map((msg, index) => {
+                const isFromAdmin = isAdminMessage(msg);
+                
+                return (
+                  <div 
+                    key={index} 
+                    className={`flex ${isFromAdmin ? 'justify-start' : 'justify-end'}`}
+                  >
+                    <div className={`max-w-[80%] ${isFromAdmin ? 'mr-auto' : 'ml-auto'}`}>
+                      <div className={`flex items-center gap-2 mb-1 ${isFromAdmin ? '' : 'flex-row-reverse'}`}>
+                        <span className={`text-xs font-medium ${isFromAdmin ? 'text-purple-700' : 'text-blue-700'}`}>
+                          {isFromAdmin ? '👔' : '👤'} {msg.user_name}
+                        </span>
+                        <span className="text-xs text-gray-400">{msg.formatted_time}</span>
+                      </div>
+                      
+                      <div className={`
+                        rounded-2xl p-3 shadow-sm
+                        ${isFromAdmin 
+                          ? 'bg-gray-100 border border-gray-300 rounded-tl-none' 
+                          : 'bg-blue-500 text-white rounded-tr-none'
+                        }
+                      `}>
+                        <p className={`text-sm leading-relaxed break-words whitespace-pre-wrap ${isFromAdmin ? 'text-gray-800' : 'text-white'}`}>
                           {msg.message}
                         </p>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })
-          )}
+                );
+              })
+            )}
+            <div ref={messagesEndRef} />
+          </div>
         </div>
+      </div>
 
-        {/* New Message Form */}
-        <div className="bg-white rounded-lg shadow-md p-4 sticky bottom-4">
-          <h2 className="text-lg font-semibold mb-4">✍️ 新しいメッセージ</h2>
-          
-          <form onSubmit={handleSubmitMessage} className="space-y-3">
-            {!isAdmin && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  お名前（任意）
+      {/* Fixed Bottom Input Area - Like Twitter/Line */}
+      <div className="bg-white border-t border-gray-200 shadow-lg">
+        <div className="max-w-2xl mx-auto p-4">
+          {/* Options Panel - Collapsible */}
+          {showOptions && (
+            <div className="mb-3 space-y-3 animate-slideDown">
+              {!isAdmin && (
+                <div>
+                  <input
+                    type="text"
+                    value={userName}
+                    onChange={(e) => setUserName(e.target.value)}
+                    placeholder="お名前（任意）"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              )}
+
+              {((isAdmin && item?.user_email) || !isAdmin) && (
+                <label className="flex items-center gap-2 p-3 text-sm text-gray-700 cursor-pointer bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={sendNotification}
+                    onChange={(e) => setSendNotification(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm">
+                    {isAdmin 
+                      ? `📧 担当者にメール通知 (${item?.user_email})`
+                      : '📧 管理者にメール通知を送信'
+                    }
+                  </span>
                 </label>
-                <input
-                  type="text"
-                  value={userName}
-                  onChange={(e) => setUserName(e.target.value)}
-                  placeholder="匿名"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                種類
-              </label>
-              <select
-                value={messageType}
-                onChange={(e) => setMessageType(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="general">💬 一般</option>
-                <option value="issue">⚠️ 問題</option>
-                <option value="question">❓ 質問</option>
-                <option value="fixed">✅ 修理済み</option>
-                <option value="status_update">🔄 ステータス更新</option>
-              </select>
+              )}
             </div>
+          )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                メッセージ
-              </label>
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="メッセージを入力..."
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-              />
-            </div>
+          {/* Main Input Area */}
+          <form onSubmit={handleSubmitMessage} className="flex items-end gap-2">
+            <button
+              type="button"
+              onClick={() => setShowOptions(!showOptions)}
+              className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors"
+            >
+              {showOptions ? '✕' : '+'}
+            </button>
 
-            {((isAdmin && item?.user_email) || !isAdmin) && (
-              <div className={`flex items-center p-3 rounded-lg border-2 ${
-                isAdmin ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'
-              }`}>
-                <input
-                  type="checkbox"
-                  id="sendNotification"
-                  checked={sendNotification}
-                  onChange={(e) => setSendNotification(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <label htmlFor="sendNotification" className="ml-2 text-sm font-medium text-gray-700">
-                  {isAdmin 
-                    ? `📧 担当者にメール通知 (${item?.user_email})`
-                    : '📧 管理者にメール通知を送信する'
-                  }
-                </label>
-              </div>
-            )}
-
-            {isAdmin && !item?.user_email && (
-              <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-3">
-                <p className="text-xs text-yellow-800">
-                  ⚠️ この製品には担当者メールアドレスが登録されていません
-                </p>
-              </div>
-            )}
+            <textarea
+              ref={textareaRef}
+              value={message}
+              onChange={handleTextareaChange}
+              onKeyPress={handleKeyPress}
+              placeholder="メッセージを入力... (Shift+Enterで改行)"
+              rows={1}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-full resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 max-h-32 overflow-y-auto"
+              style={{ minHeight: '40px' }}
+            />
 
             <button
               type="submit"
               disabled={!message.trim() || postLoading}
-              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors"
             >
               {postLoading ? (
-                <span className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  送信中...
-                </span>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
               ) : (
-                '📮 送信'
+                <span className="text-lg">➤</span>
               )}
             </button>
           </form>
-        </div>
 
-        {/* Refresh Button */}
-        <button
-          onClick={fetchData}
-          className="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
-        >
-          🔄 最新メッセージを取得
-        </button>
+          {/* Helper text */}
+          <div className="mt-2 text-xs text-gray-500 text-center">
+            Enterで送信 • Shift+Enterで改行
+          </div>
+        </div>
       </div>
     </div>
   );
