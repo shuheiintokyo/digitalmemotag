@@ -71,12 +71,8 @@ SUBSCRIPTIONS_COLLECTION = os.getenv("APPWRITE_SUBSCRIPTIONS_COLLECTION", "email
 # Resend configuration
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
-ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")  # ✅ NEW: Admin email
-ADMIN_EMAIL_RAW = os.getenv("ADMIN_EMAIL", "")
-
 ADMIN_EMAIL_STRING = os.getenv("ADMIN_EMAIL", "")
 ADMIN_EMAILS = [email.strip() for email in ADMIN_EMAIL_STRING.split(',') if email.strip()]
-
 
 # Initialize Appwrite
 client = Client()
@@ -111,7 +107,10 @@ class ItemCreate(BaseModel):
     name: str
     location: str
     status: str = "Working"
-    user_email: Optional[EmailStr] = None  # ✅ NEW
+    user_email: Optional[EmailStr] = None
+    total_pieces: Optional[int] = None      # NEW
+    target_date: Optional[str] = None       # NEW
+    progress: Optional[int] = 0              # NEW
 
 class Item(BaseModel):
     id: Optional[str] = None
@@ -119,7 +118,10 @@ class Item(BaseModel):
     name: str
     location: str
     status: str
-    user_email: Optional[str] = None  # ✅ NEW
+    user_email: Optional[str] = None
+    total_pieces: Optional[int] = None      # NEW
+    target_date: Optional[str] = None       # NEW
+    progress: Optional[int] = 0              # NEW
     created_at: Optional[str] = None
 
 class MessageCreate(BaseModel):
@@ -142,6 +144,9 @@ class LoginRequest(BaseModel):
 
 class StatusUpdate(BaseModel):
     status: str
+
+class ProgressUpdate(BaseModel):
+    progress: int
 
 class EmailSubscription(BaseModel):
     item_id: str
@@ -280,7 +285,10 @@ class Database:
                     'name': doc['name'],
                     'location': doc['location'],
                     'status': doc['status'],
-                    'user_email': doc.get('user_email'),  # ✅ NEW
+                    'user_email': doc.get('user_email'),
+                    'total_pieces': doc.get('total_pieces'),      # NEW
+                    'target_date': doc.get('target_date'),        # NEW
+                    'progress': doc.get('progress', 0),           # NEW
                     'created_at': doc.get('$createdAt'),
                     'updated_at': doc.get('$updatedAt')
                 }
@@ -314,7 +322,10 @@ class Database:
                     'name': doc['name'],
                     'location': doc['location'],
                     'status': doc['status'],
-                    'user_email': doc.get('user_email'),  # ✅ NEW
+                    'user_email': doc.get('user_email'),
+                    'total_pieces': doc.get('total_pieces'),      # NEW
+                    'target_date': doc.get('target_date'),        # NEW
+                    'progress': doc.get('progress', 0),           # NEW
                     'created_at': doc.get('$createdAt')
                 }
             return None
@@ -356,8 +367,9 @@ class Database:
             print(f"❌ Error getting messages: {e}")
             return []
     
-    def add_item(self, item_id, name, location, status="Working", user_email=None):  # ✅ NEW PARAMETER
-        """Add new item"""
+    def add_item(self, item_id, name, location, status="Working", user_email=None, 
+                 total_pieces=None, target_date=None, progress=0):
+        """Add new item with progress tracking"""
         try:
             existing = self.get_item_by_id(item_id)
             if existing:
@@ -367,12 +379,16 @@ class Database:
                 'item_id': item_id,
                 'name': name,
                 'location': location,
-                'status': status
+                'status': status,
+                'progress': progress
             }
             
-            # ✅ NEW: Add user_email if provided
             if user_email:
                 data['user_email'] = user_email
+            if total_pieces is not None:
+                data['total_pieces'] = total_pieces
+            if target_date:
+                data['target_date'] = target_date
             
             doc = self.databases.create_document(
                 database_id=self.database_id,
@@ -418,7 +434,7 @@ class Database:
             
             print(f"✅ Message added: {item_id} by {user_name}")
             
-            # ✅ UPDATED: Send email notification if requested
+            # Send email notification if requested
             if send_notification:
                 item_name = item['name']
                 user_email = item.get('user_email')
@@ -452,115 +468,6 @@ class Database:
             print(f"❌ Error adding message: {e}")
             return False, f"Unexpected error: {str(e)}"
     
-    def send_notifications_for_item(self, item_id, message, user_name):
-        """Send email notifications to subscribed users"""
-        try:
-            item = self.get_item_by_id(item_id)
-            if not item:
-                print(f"⚠️  Item not found: {item_id}")
-                return
-            
-            item_name = item['name']
-            subscribers = self.get_subscriptions(item_id)
-            
-            if not subscribers:
-                print(f"ℹ️  No subscribers for item: {item_id}")
-                return
-            
-            print(f"📧 Sending notifications to {len(subscribers)} subscriber(s)")
-            
-            success_count = 0
-            for sub in subscribers:
-                email = sub.get('email')
-                if email:
-                    if send_email_notification(email, item_name, item_id, message, user_name):
-                        success_count += 1
-            
-            print(f"✅ Sent {success_count}/{len(subscribers)} notifications")
-                    
-        except Exception as e:
-            print(f"❌ Error sending notifications: {e}")
-    
-    def add_subscription(self, item_id, email, notify_all=False):
-        """Add email subscription for an item"""
-        try:
-            existing = self.get_subscriptions(item_id)
-            for sub in existing:
-                if sub.get('email') == email:
-                    return False, "Already subscribed"
-            
-            doc = self.databases.create_document(
-                database_id=self.database_id,
-                collection_id=self.subscriptions_collection,
-                document_id=ID.unique(),
-                data={
-                    'item_id': item_id,
-                    'email': email,
-                    'notify_all': notify_all
-                }
-            )
-            
-            print(f"✅ Subscription added: {email} for {item_id}")
-            return True, "Subscription added"
-            
-        except AppwriteException as e:
-            print(f"❌ Appwrite error adding subscription: {e.message}")
-            return False, e.message
-        except Exception as e:
-            print(f"❌ Error adding subscription: {e}")
-            return False, str(e)
-    
-    def get_subscriptions(self, item_id=None):
-        """Get email subscriptions, optionally filtered by item_id"""
-        try:
-            queries = [Query.limit(100)]
-            
-            if item_id:
-                queries.append(Query.equal('item_id', item_id))
-            
-            result = self.databases.list_documents(
-                database_id=self.database_id,
-                collection_id=self.subscriptions_collection,
-                queries=queries
-            )
-            
-            subscriptions = []
-            for doc in result['documents']:
-                sub = {
-                    'id': doc['$id'],
-                    'item_id': doc['item_id'],
-                    'email': doc['email'],
-                    'notify_all': doc.get('notify_all', False)
-                }
-                subscriptions.append(sub)
-            
-            return subscriptions
-        except Exception as e:
-            print(f"❌ Error getting subscriptions: {e}")
-            return []
-    
-    def delete_subscription(self, item_id, email):
-        """Remove email subscription"""
-        try:
-            subscriptions = self.get_subscriptions(item_id)
-            
-            for sub in subscriptions:
-                if sub['email'] == email:
-                    self.databases.delete_document(
-                        database_id=self.database_id,
-                        collection_id=self.subscriptions_collection,
-                        document_id=sub['id']
-                    )
-                    print(f"✅ Subscription removed: {email} from {item_id}")
-                    return True
-            
-            print(f"⚠️  Subscription not found: {email} for {item_id}")
-            return False
-            
-        except Exception as e:
-            print(f"❌ Error deleting subscription: {e}")
-            return False
-    
     def update_item_status(self, item_id, status):
         """Update item status"""
         try:
@@ -585,6 +492,30 @@ class Database:
             print(f"❌ Error updating status: {e}")
             return False
     
+    def update_item_progress(self, item_id, progress):
+        """Update item progress"""
+        try:
+            item = self.get_item_by_id(item_id)
+            
+            if not item:
+                return False
+            
+            self.databases.update_document(
+                database_id=self.database_id,
+                collection_id=self.items_collection,
+                document_id=item['id'],
+                data={
+                    'progress': progress
+                }
+            )
+            
+            print(f"✅ Progress updated: {item_id} -> {progress}%")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error updating progress: {e}")
+            return False
+    
     def delete_item(self, item_id):
         """Delete item and all related data"""
         try:
@@ -593,6 +524,7 @@ class Database:
             if not item:
                 return False
             
+            # Delete all messages
             messages = self.get_messages(item_id)
             for msg in messages:
                 self.databases.delete_document(
@@ -601,21 +533,14 @@ class Database:
                     document_id=msg['id']
                 )
             
-            subscriptions = self.get_subscriptions(item_id)
-            for sub in subscriptions:
-                self.databases.delete_document(
-                    database_id=self.database_id,
-                    collection_id=self.subscriptions_collection,
-                    document_id=sub['id']
-                )
-            
+            # Delete item itself
             self.databases.delete_document(
                 database_id=self.database_id,
                 collection_id=self.items_collection,
                 document_id=item['id']
             )
             
-            print(f"✅ Item deleted: {item_id} (including {len(messages)} messages and {len(subscriptions)} subscriptions)")
+            print(f"✅ Item deleted: {item_id} (including {len(messages)} messages)")
             return True
             
         except Exception as e:
@@ -690,7 +615,10 @@ def create_item(item: ItemCreate, _: str = Depends(verify_admin_token)):
         item.name, 
         item.location, 
         item.status,
-        item.user_email  # ✅ NEW
+        item.user_email,
+        item.total_pieces,
+        item.target_date,
+        item.progress
     )
     if success:
         return {"success": True, "message": message}
@@ -704,6 +632,26 @@ def update_item_status(item_id: str, status_update: StatusUpdate, _: str = Depen
         return {"success": True, "message": "Status updated"}
     else:
         raise HTTPException(status_code=400, detail="Failed to update status")
+
+@app.patch("/items/{item_id}/progress")
+def update_item_progress(item_id: str, progress: int, _: str = Depends(verify_admin_token)):
+    """Update item progress (0-100%)"""
+    if progress < 0 or progress > 100:
+        raise HTTPException(status_code=400, detail="Progress must be between 0 and 100")
+    
+    success = db.update_item_progress(item_id, progress)
+    if success:
+        # Auto update status based on progress
+        if progress == 100:
+            db.update_item_status(item_id, "Completed")
+        elif progress >= 75:
+            db.update_item_status(item_id, "Working")
+        elif progress < 25:
+            db.update_item_status(item_id, "Delayed")
+        
+        return {"success": True, "message": "Progress updated"}
+    else:
+        raise HTTPException(status_code=400, detail="Failed to update progress")
 
 @app.delete("/items/{item_id}")
 def delete_item(item_id: str, _: str = Depends(verify_admin_token)):
@@ -747,31 +695,6 @@ def delete_message(message_id: str, _: str = Depends(verify_admin_token)):
     except Exception as e:
         print(f"❌ Error deleting message: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to delete message: {str(e)}")
-
-@app.post("/subscriptions")
-def add_subscription(subscription: EmailSubscription):
-    success, message = db.add_subscription(
-        subscription.item_id,
-        subscription.email,
-        subscription.notify_all
-    )
-    if success:
-        return {"success": True, "message": message}
-    else:
-        raise HTTPException(status_code=400, detail=message)
-
-@app.get("/subscriptions/{item_id}")
-def get_subscriptions(item_id: str):
-    subscriptions = db.get_subscriptions(item_id)
-    return subscriptions
-
-@app.delete("/subscriptions/{item_id}/{email}")
-def delete_subscription(item_id: str, email: str, _: str = Depends(verify_admin_token)):
-    success = db.delete_subscription(item_id, email)
-    if success:
-        return {"success": True, "message": "Subscription removed"}
-    else:
-        raise HTTPException(status_code=400, detail="Failed to remove subscription")
 
 @app.get("/health")
 def health_check():

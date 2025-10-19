@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'https://digitalmemotag-backend.vercel.app';
+// Update the API base URL to your deployed backend
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://digitalmemotag-backend.vercel.app';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -18,13 +19,17 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Updated interfaces
 export interface Item {
   id?: number;
   item_id: string;
   name: string;
   location: string;
   status: string;
-  user_email?: string;  // ✅ NEW
+  user_email?: string;
+  total_pieces?: number;    // NEW
+  target_date?: string;      // NEW
+  progress?: number;         // NEW (0-100)
   created_at?: string;
 }
 
@@ -51,7 +56,10 @@ export interface ItemCreate {
   name: string;
   location: string;
   status: string;
-  user_email?: string;  // ✅ NEW
+  user_email?: string;
+  total_pieces?: number;    // NEW
+  target_date?: string;      // NEW
+  progress?: number;         // NEW
 }
 
 // Auth API
@@ -78,6 +86,14 @@ export const createItem = async (item: ItemCreate) => {
 
 export const updateItemStatus = async (itemId: string, status: string) => {
   const response = await api.patch(`/items/${itemId}/status`, { status });
+  return response.data;
+};
+
+// NEW: Update item progress
+export const updateItemProgress = async (itemId: string, progress: number) => {
+  const response = await api.patch(`/items/${itemId}/progress`, null, {
+    params: { progress }
+  });
   return response.data;
 };
 
