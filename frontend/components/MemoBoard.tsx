@@ -245,49 +245,31 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
       {/* Fixed Bottom Input Area - Like Twitter/Line */}
       <div className="bg-white border-t border-gray-200 shadow-lg">
         <div className="max-w-2xl mx-auto p-4">
-          {/* Options Panel - Collapsible */}
-          {showOptions && (
-            <div className="mb-3 space-y-3 animate-slideDown">
-              {!isAdmin && (
-                <div>
-                  <input
-                    type="text"
-                    value={userName}
-                    onChange={(e) => setUserName(e.target.value)}
-                    placeholder="お名前（任意）"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-              )}
-
-              {((isAdmin && item?.user_email) || !isAdmin) && (
-                <label className="flex items-center gap-2 p-3 text-sm text-gray-700 cursor-pointer bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={sendNotification}
-                    onChange={(e) => setSendNotification(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-sm">
-                    {isAdmin 
-                      ? `📧 担当者にメール通知 (${item?.user_email})`
-                      : '📧 管理者にメール通知を送信'
-                    }
-                  </span>
-                </label>
-              )}
+          {/* Options Panel - Collapsible (Name only for non-admin) */}
+          {showOptions && !isAdmin && (
+            <div className="mb-3 animate-slideDown">
+              <input
+                type="text"
+                value={userName}
+                onChange={(e) => setUserName(e.target.value)}
+                placeholder="お名前（任意）"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
             </div>
           )}
 
           {/* Main Input Area */}
-          <form onSubmit={handleSubmitMessage} className="flex items-end gap-2">
-            <button
-              type="button"
-              onClick={() => setShowOptions(!showOptions)}
-              className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors"
-            >
-              {showOptions ? '✕' : '+'}
-            </button>
+          <div className="flex items-end gap-2">
+            {!isAdmin && (
+              <button
+                type="button"
+                onClick={() => setShowOptions(!showOptions)}
+                className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors"
+                title="名前を入力"
+              >
+                {showOptions ? '✕' : '👤'}
+              </button>
+            )}
 
             <textarea
               ref={textareaRef}
@@ -300,22 +282,54 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
               style={{ minHeight: '40px' }}
             />
 
+            {/* Send Button - Just Post */}
             <button
-              type="submit"
+              type="button"
+              onClick={(e) => {
+                setSendNotification(false);
+                handleSubmitMessage(e as any);
+              }}
               disabled={!message.trim() || postLoading}
               className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors"
+              title="送信"
             >
-              {postLoading ? (
+              {postLoading && !sendNotification ? (
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
               ) : (
                 <span className="text-lg">➤</span>
               )}
             </button>
-          </form>
+
+            {/* Send with Email Button - Post AND Notify */}
+            {((isAdmin && item?.user_email) || !isAdmin) && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  setSendNotification(true);
+                  setTimeout(() => handleSubmitMessage(e as any), 0);
+                }}
+                disabled={!message.trim() || postLoading}
+                className="flex-shrink-0 w-10 h-10 rounded-full bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors"
+                title={isAdmin ? "送信 + 担当者に通知" : "送信 + 管理者に通知"}
+              >
+                {postLoading && sendNotification ? (
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                ) : (
+                  <span className="text-lg">📧</span>
+                )}
+              </button>
+            )}
+          </div>
 
           {/* Helper text */}
           <div className="mt-2 text-xs text-gray-500 text-center">
-            Enterで送信 • Shift+Enterで改行
+            <span className="inline-flex items-center gap-3">
+              <span>➤ 送信のみ</span>
+              {((isAdmin && item?.user_email) || !isAdmin) && (
+                <span>📧 送信+通知</span>
+              )}
+              <span>• Enterで送信</span>
+            </span>
           </div>
         </div>
       </div>
