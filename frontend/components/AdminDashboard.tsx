@@ -106,17 +106,69 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+    // ✅ UPDATED: Generate QR code with item name label embedded
   const handleGenerateQRCode = async (item: Item) => {
     try {
       const url = `${window.location.origin}/memo/${item.item_id}`;
-      const qrDataUrl = await QRCode.toDataURL(url, {
-        width: 300,
-        margin: 2,
+      
+      // Generate QR code on a canvas
+      const canvas = document.createElement('canvas');
+      const qrSize = 300;
+      const padding = 40;
+      const labelHeight = 80;
+      const totalHeight = qrSize + labelHeight + padding * 2;
+      const totalWidth = qrSize + padding * 2;
+      
+      canvas.width = totalWidth;
+      canvas.height = totalHeight;
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      
+      // White background
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, totalWidth, totalHeight);
+      
+      // Generate QR code
+      await QRCode.toCanvas(canvas, url, {
+        width: qrSize,
+        margin: 0,
         color: {
           dark: '#000000',
           light: '#FFFFFF'
         }
       });
+      
+      // Create a new canvas for the composite image
+      const compositeCanvas = document.createElement('canvas');
+      compositeCanvas.width = totalWidth;
+      compositeCanvas.height = totalHeight;
+      const compositeCtx = compositeCanvas.getContext('2d');
+      if (!compositeCtx) return;
+      
+      // White background
+      compositeCtx.fillStyle = '#FFFFFF';
+      compositeCtx.fillRect(0, 0, totalWidth, totalHeight);
+      
+      // Draw QR code
+      compositeCtx.drawImage(canvas, padding, padding, qrSize, qrSize);
+      
+      // Draw item name label
+      compositeCtx.fillStyle = '#000000';
+      compositeCtx.font = 'bold 20px Arial, sans-serif';
+      compositeCtx.textAlign = 'center';
+      compositeCtx.textBaseline = 'top';
+      
+      const textY = qrSize + padding + 15;
+      compositeCtx.fillText(item.name, totalWidth / 2, textY);
+      
+      // Draw item ID below name
+      compositeCtx.font = '14px Arial, sans-serif';
+      compositeCtx.fillStyle = '#666666';
+      compositeCtx.fillText(`ID: ${item.item_id}`, totalWidth / 2, textY + 30);
+      
+      // Convert to data URL
+      const qrDataUrl = compositeCanvas.toDataURL('image/png');
       
       setQrCodeDataUrl(qrDataUrl);
       setQrCodeItem(item);
@@ -126,6 +178,7 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  // ✅ UPDATED: Download already includes the name
   const handleDownloadQRCode = () => {
     if (!qrCodeDataUrl || !qrCodeItem) return;
 
