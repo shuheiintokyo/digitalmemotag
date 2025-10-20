@@ -110,7 +110,6 @@ const AdminDashboard: React.FC = () => {
     try {
       const url = `${window.location.origin}/memo/${item.item_id}`;
       
-      // Generate QR code on a canvas
       const canvas = document.createElement('canvas');
       const qrSize = 300;
       const padding = 40;
@@ -124,11 +123,9 @@ const AdminDashboard: React.FC = () => {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
       
-      // White background
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, totalWidth, totalHeight);
       
-      // Generate QR code
       await QRCode.toCanvas(canvas, url, {
         width: qrSize,
         margin: 0,
@@ -138,21 +135,17 @@ const AdminDashboard: React.FC = () => {
         }
       });
       
-      // Create a new canvas for the composite image
       const compositeCanvas = document.createElement('canvas');
       compositeCanvas.width = totalWidth;
       compositeCanvas.height = totalHeight;
       const compositeCtx = compositeCanvas.getContext('2d');
       if (!compositeCtx) return;
       
-      // White background
       compositeCtx.fillStyle = '#FFFFFF';
       compositeCtx.fillRect(0, 0, totalWidth, totalHeight);
       
-      // Draw QR code
       compositeCtx.drawImage(canvas, padding, padding, qrSize, qrSize);
       
-      // Draw item name label
       compositeCtx.fillStyle = '#000000';
       compositeCtx.font = 'bold 20px Arial, sans-serif';
       compositeCtx.textAlign = 'center';
@@ -161,12 +154,10 @@ const AdminDashboard: React.FC = () => {
       const textY = qrSize + padding + 15;
       compositeCtx.fillText(item.name, totalWidth / 2, textY);
       
-      // Draw item ID below name
       compositeCtx.font = '14px Arial, sans-serif';
       compositeCtx.fillStyle = '#666666';
       compositeCtx.fillText(`ID: ${item.item_id}`, totalWidth / 2, textY + 30);
       
-      // Convert to data URL
       const qrDataUrl = compositeCanvas.toDataURL('image/png');
       
       setQrCodeDataUrl(qrDataUrl);
@@ -214,6 +205,17 @@ const AdminDashboard: React.FC = () => {
       default:
         return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const formatUserEmails = (emailString?: string) => {
+    if (!emailString) return '未設定';
+    
+    const emails = emailString.split(',').map(e => e.trim()).filter(e => e);
+    
+    if (emails.length === 0) return '未設定';
+    if (emails.length === 1) return emails[0];
+    
+    return `${emails[0]}... (+${emails.length - 1})`;
   };
 
   if (loading) {
@@ -282,14 +284,20 @@ const AdminDashboard: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">担当者メール</label>
+                <label className="block text-sm font-medium mb-2">
+                  担当者メール
+                  <span className="text-xs text-gray-500 ml-2">(複数可、カンマ区切り)</span>
+                </label>
                 <input
-                  type="email"
+                  type="text"
                   value={newItemUserEmail}
                   onChange={(e) => setNewItemUserEmail(e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg"
-                  placeholder="example@email.com"
+                  placeholder="user1@email.com, user2@email.com"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  💡 複数のメールアドレスを登録する場合はカンマ(,)で区切ってください
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">総数量</label>
@@ -367,7 +375,12 @@ const AdminDashboard: React.FC = () => {
                           {item.location}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {item.user_email || '未設定'}
+                          <div 
+                            className="max-w-xs truncate cursor-help" 
+                            title={item.user_email || '未設定'}
+                          >
+                            {formatUserEmails(item.user_email)}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {item.progress !== undefined ? `${item.progress}%` : '-'}
