@@ -33,7 +33,7 @@ class UnicodeJSONResponse(Response):
 
 app = FastAPI(
     title="Digital Memo Tag API with Appwrite", 
-    version="2.0.0",
+    version="2.0.1",
     default_response_class=UnicodeJSONResponse
 )
 
@@ -592,7 +592,7 @@ def format_timestamp_jst(timestamp_str):
 def read_root():
     return {
         "message": "Digital Memo Tag API with Appwrite + Resend",
-        "version": "2.0.0",
+        "version": VERSION,  
         "database": "Appwrite",
         "email": "Resend" if RESEND_API_KEY else "Not configured"
     }
