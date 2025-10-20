@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
@@ -13,7 +13,7 @@ import json
 from starlette.responses import Response
 from appwrite.client import Client
 from appwrite.services.databases import Databases
-from appwrite.query import Query
+from appwrite.query import Query as AppwriteQuery
 from appwrite.id import ID
 from appwrite.exception import AppwriteException
 
@@ -31,25 +31,24 @@ class UnicodeJSONResponse(Response):
             separators=(",", ":"),
         ).encode("utf-8")
 
-# Set as default response class
 app = FastAPI(
     title="Digital Memo Tag API with Appwrite", 
     version="2.0.0",
     default_response_class=UnicodeJSONResponse
 )
 
-# CORS middleware - More flexible for development
+# CORS middleware
 origins = [
     "http://localhost:3000",
     "https://digitalmemotag.vercel.app",
-    "https://memotag.digital",  # Add this!
-    "https://www.memotag.digital"  # And this if you use www
+    "https://memotag.digital",
+    "https://www.memotag.digital"
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"https://.*\.vercel\.app",
-    allow_origins=origins,  # This is important!
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -110,9 +109,9 @@ class ItemCreate(BaseModel):
     location: str
     status: str = "Working"
     user_email: Optional[EmailStr] = None
-    total_pieces: Optional[int] = None      # NEW
-    target_date: Optional[str] = None       # NEW
-    progress: Optional[int] = 0              # NEW
+    total_pieces: Optional[int] = None
+    target_date: Optional[str] = None
+    progress: Optional[int] = 0
 
 class Item(BaseModel):
     id: Optional[str] = None
@@ -121,9 +120,9 @@ class Item(BaseModel):
     location: str
     status: str
     user_email: Optional[str] = None
-    total_pieces: Optional[int] = None      # NEW
-    target_date: Optional[str] = None       # NEW
-    progress: Optional[int] = 0              # NEW
+    total_pieces: Optional[int] = None
+    target_date: Optional[str] = None
+    progress: Optional[int] = 0
     created_at: Optional[str] = None
 
 class MessageCreate(BaseModel):
@@ -274,8 +273,8 @@ class Database:
                 database_id=self.database_id,
                 collection_id=self.items_collection,
                 queries=[
-                    Query.order_desc('$createdAt'),
-                    Query.limit(100)
+                    AppwriteQuery.order_desc('$createdAt'),
+                    AppwriteQuery.limit(100)
                 ]
             )
             
@@ -288,9 +287,9 @@ class Database:
                     'location': doc['location'],
                     'status': doc['status'],
                     'user_email': doc.get('user_email'),
-                    'total_pieces': doc.get('total_pieces'),      # NEW
-                    'target_date': doc.get('target_date'),        # NEW
-                    'progress': doc.get('progress', 0),           # NEW
+                    'total_pieces': doc.get('total_pieces'),
+                    'target_date': doc.get('target_date'),
+                    'progress': doc.get('progress', 0),
                     'created_at': doc.get('$createdAt'),
                     'updated_at': doc.get('$updatedAt')
                 }
@@ -311,8 +310,8 @@ class Database:
                 database_id=self.database_id,
                 collection_id=self.items_collection,
                 queries=[
-                    Query.equal('item_id', item_id),
-                    Query.limit(1)
+                    AppwriteQuery.equal('item_id', item_id),
+                    AppwriteQuery.limit(1)
                 ]
             )
             
@@ -325,9 +324,9 @@ class Database:
                     'location': doc['location'],
                     'status': doc['status'],
                     'user_email': doc.get('user_email'),
-                    'total_pieces': doc.get('total_pieces'),      # NEW
-                    'target_date': doc.get('target_date'),        # NEW
-                    'progress': doc.get('progress', 0),           # NEW
+                    'total_pieces': doc.get('total_pieces'),
+                    'target_date': doc.get('target_date'),
+                    'progress': doc.get('progress', 0),
                     'created_at': doc.get('$createdAt')
                 }
             return None
@@ -339,12 +338,12 @@ class Database:
         """Get messages, optionally filtered by item_id"""
         try:
             queries = [
-                Query.order_desc('$createdAt'),
-                Query.limit(100)
+                AppwriteQuery.order_desc('$createdAt'),
+                AppwriteQuery.limit(100)
             ]
             
             if item_id:
-                queries.append(Query.equal('item_id', item_id))
+                queries.append(AppwriteQuery.equal('item_id', item_id))
             
             result = self.databases.list_documents(
                 database_id=self.database_id,
@@ -417,7 +416,6 @@ class Database:
             if not message:
                 return False, "Message is empty"
             
-            # Get item details for email
             item = self.get_item_by_id(item_id)
             if not item:
                 return False, "Item not found"
@@ -436,21 +434,17 @@ class Database:
             
             print(f"✅ Message added: {item_id} by {user_name}")
             
-            # Send email notification if requested
             if send_notification:
                 item_name = item['name']
                 user_email = item.get('user_email')
                 
-                # Determine recipient based on who posted
                 if user_name in ['管理者', 'admin', 'Admin', 'Administrator']:
-                    # Admin posted - send to user
                     if user_email:
                         print(f"📧 Sending notification from admin to user: {user_email}")
                         send_email_notification(user_email, item_name, item_id, message, user_name)
                     else:
                         print("⚠️ User email not configured for this item")
                 else:
-                    # User posted - send to ALL admins
                     if ADMIN_EMAILS:
                         print(f"📧 Sending notification from user to {len(ADMIN_EMAILS)} admin(s)")
                         success_count = 0
@@ -500,6 +494,7 @@ class Database:
             item = self.get_item_by_id(item_id)
             
             if not item:
+                print(f"❌ Item not found: {item_id}")
                 return False
             
             self.databases.update_document(
@@ -514,6 +509,9 @@ class Database:
             print(f"✅ Progress updated: {item_id} -> {progress}%")
             return True
             
+        except AppwriteException as e:
+            print(f"❌ Appwrite error updating progress: {e.message}")
+            return False
         except Exception as e:
             print(f"❌ Error updating progress: {e}")
             return False
@@ -526,7 +524,6 @@ class Database:
             if not item:
                 return False
             
-            # Delete all messages
             messages = self.get_messages(item_id)
             for msg in messages:
                 self.databases.delete_document(
@@ -535,7 +532,6 @@ class Database:
                     document_id=msg['id']
                 )
             
-            # Delete item itself
             self.databases.delete_document(
                 database_id=self.database_id,
                 collection_id=self.items_collection,
@@ -636,15 +632,13 @@ def update_item_status(item_id: str, status_update: StatusUpdate, _: str = Depen
         raise HTTPException(status_code=400, detail="Failed to update status")
 
 @app.patch("/items/{item_id}/progress")
-def update_item_progress(
-    item_id: str, 
-    progress: int = Query(..., ge=0, le=100),
-    _: str = Depends(verify_admin_token)
-):
-    """Update item progress (0-100%)"""
+def update_item_progress(item_id: str, progress: int = Query(..., ge=0, le=100)):
+    """Update item progress (0-100%) - Available to all users"""
+    if progress < 0 or progress > 100:
+        raise HTTPException(status_code=400, detail="Progress must be between 0 and 100")
+    
     success = db.update_item_progress(item_id, progress)
     if success:
-        # Auto update status based on progress
         if progress == 100:
             db.update_item_status(item_id, "Completed")
         elif progress >= 75:
