@@ -636,11 +636,12 @@ def update_item_status(item_id: str, status_update: StatusUpdate, _: str = Depen
         raise HTTPException(status_code=400, detail="Failed to update status")
 
 @app.patch("/items/{item_id}/progress")
-def update_item_progress(item_id: str, progress: int, _: str = Depends(verify_admin_token)):
+def update_item_progress(
+    item_id: str, 
+    progress: int = Query(..., ge=0, le=100),
+    _: str = Depends(verify_admin_token)
+):
     """Update item progress (0-100%)"""
-    if progress < 0 or progress > 100:
-        raise HTTPException(status_code=400, detail="Progress must be between 0 and 100")
-    
     success = db.update_item_progress(item_id, progress)
     if success:
         # Auto update status based on progress
