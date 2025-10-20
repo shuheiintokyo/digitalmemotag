@@ -106,7 +106,6 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-    // ✅ UPDATED: Generate QR code with item name label embedded
   const handleGenerateQRCode = async (item: Item) => {
     try {
       const url = `${window.location.origin}/memo/${item.item_id}`;
@@ -178,7 +177,6 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  // ✅ UPDATED: Download already includes the name
   const handleDownloadQRCode = () => {
     if (!qrCodeDataUrl || !qrCodeItem) return;
 
@@ -423,9 +421,7 @@ const AdminDashboard: React.FC = () => {
               <div className="text-center">
                 <h3 className="text-lg font-bold mb-4">QRコード</h3>
                 <div className="mb-4">
-                  <img src={qrCodeDataUrl} alt="QR Code" className="mx-auto mb-2" />
-                  <p className="text-sm font-medium text-gray-900">{qrCodeItem.name}</p>
-                  <p className="text-xs text-gray-500">ID: {qrCodeItem.item_id}</p>
+                  <img src={qrCodeDataUrl} alt="QR Code with Label" className="mx-auto border border-gray-300 rounded" />
                 </div>
                 <div className="flex gap-2 justify-center">
                   <button
