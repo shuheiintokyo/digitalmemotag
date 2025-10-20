@@ -19,6 +19,8 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
   const [completedPieces, setCompletedPieces] = useState(Math.round((currentProgress / 100) * totalPieces));
   const [isDragging, setIsDragging] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -26,6 +28,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
   useEffect(() => {
     setProgress(currentProgress);
     setCompletedPieces(Math.round((currentProgress / 100) * totalPieces));
+    setHasUnsavedChanges(false);
   }, [currentProgress, totalPieces]);
 
   // Auto-save after 3 seconds of inactivity
@@ -34,8 +37,10 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
       clearTimeout(saveTimeoutRef.current);
     }
 
-    if (!isDragging && progress !== currentProgress) {
+    if (!isDragging && progress !== currentProgress && hasUnsavedChanges) {
+      console.log('⏰ Auto-save scheduled in 3 seconds...');
       saveTimeoutRef.current = setTimeout(() => {
+        console.log('🤖 Auto-save triggered!');
         saveProgress();
       }, 3000);
     }
@@ -45,18 +50,30 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [progress, isDragging, currentProgress]);
+  }, [progress, isDragging, currentProgress, hasUnsavedChanges]);
 
   const saveProgress = async () => {
     try {
       setIsSaving(true);
+      setSaveSuccess(false);
+      
+      console.log('💾 Saving progress to backend:', progress);
+      
       if (onProgressUpdate) {
         await onProgressUpdate(progress);
       }
-      console.log('✅ Progress saved to Appwrite:', progress);
+      
+      console.log('✅ Progress saved successfully!');
+      setHasUnsavedChanges(false);
+      setSaveSuccess(true);
+      
+      // Hide success message after 2 seconds
+      setTimeout(() => {
+        setSaveSuccess(false);
+      }, 2000);
     } catch (error) {
       console.error('❌ Failed to save progress:', error);
-      alert('進捗の保存に失敗しました');
+      alert('進捗の保存に失敗しました。もう一度お試しください。');
     } finally {
       setIsSaving(false);
     }
@@ -86,6 +103,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
     
     setProgress(Math.round(percentage));
     setCompletedPieces(Math.round((percentage / 100) * totalPieces));
+    setHasUnsavedChanges(true);
   };
 
   const handleSliderEnd = () => {
@@ -97,6 +115,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
     if (inputValue === '') {
       setCompletedPieces(0);
       setProgress(0);
+      setHasUnsavedChanges(true);
       return;
     }
     const value = parseInt(inputValue);
@@ -105,6 +124,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
     setCompletedPieces(clampedValue);
     const percentage = Math.round((clampedValue / totalPieces) * 100);
     setProgress(percentage);
+    setHasUnsavedChanges(true);
   };
 
   const handlePercentageInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -112,6 +132,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
     if (inputValue === '') {
       setProgress(0);
       setCompletedPieces(0);
+      setHasUnsavedChanges(true);
       return;
     }
     const value = parseInt(inputValue);
@@ -119,6 +140,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
     const clampedValue = Math.max(0, Math.min(100, value));
     setProgress(clampedValue);
     setCompletedPieces(Math.round((clampedValue / 100) * totalPieces));
+    setHasUnsavedChanges(true);
   };
 
   // Global mouse/touch move and up events
@@ -171,12 +193,38 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
     <div className="bg-white rounded-lg shadow-md p-6 mb-4">
       <div className="flex justify-between items-center mb-2">
         <h3 className="text-lg font-semibold">📊 進捗状況</h3>
-        {isSaving && (
-          <span className="text-sm text-green-600 animate-pulse flex items-center gap-1">
-            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-600"></div>
-            保存中...
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Save Status Indicator */}
+          {isSaving && (
+            <span className="text-sm text-blue-600 animate-pulse flex items-center gap-1">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              保存中...
+            </span>
+          )}
+          {saveSuccess && (
+            <span className="text-sm text-green-600 flex items-center gap-1 animate-fadeIn">
+              ✅ 保存完了
+            </span>
+          )}
+          {hasUnsavedChanges && !isSaving && !saveSuccess && (
+            <span className="text-sm text-orange-600 flex items-center gap-1">
+              ⚠️ 未保存
+            </span>
+          )}
+          
+          {/* Manual Save Button */}
+          <button
+            onClick={saveProgress}
+            disabled={!hasUnsavedChanges || isSaving}
+            className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+              hasUnsavedChanges && !isSaving
+                ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            💾 保存
+          </button>
+        </div>
       </div>
 
       {/* Target Date Display */}
@@ -296,9 +344,9 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
       </div>
 
       {/* Auto-save indicator */}
-      {progress !== currentProgress && !isDragging && (
+      {hasUnsavedChanges && !isDragging && !isSaving && (
         <div className="mt-3 text-xs text-gray-500 text-center">
-          💾 3秒後に自動保存されます
+          ⏰ 3秒後に自動保存されます（または「保存」ボタンをクリック）
         </div>
       )}
     </div>
