@@ -1,707 +1,497 @@
-from fastapi import FastAPI, HTTPException, Depends, status, Query
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, EmailStr
-from typing import List, Optional
-from fastapi.responses import JSONResponse
-import datetime
-import pytz
-import os
-from dotenv import load_dotenv
-import resend
-import json
-from starlette.responses import Response
-from appwrite.client import Client
-from appwrite.services.databases import Databases
-from appwrite.query import Query as AppwriteQuery
-from appwrite.id import ID
-from appwrite.exception import AppwriteException
+import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/router';
+import { getItems, createItem, deleteItem, Item } from '../lib/api';
+import QRCode from 'qrcode';
 
-load_dotenv()
+const AdminDashboard: React.FC = () => {
+  const router = useRouter();
+  const [items, setItems] = useState<Item[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<Item | null>(null);
+  const [qrCodeItem, setQrCodeItem] = useState<Item | null>(null);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
-class UnicodeJSONResponse(Response):
-    media_type = "application/json"
+  // Form state
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemLocation, setNewItemLocation] = useState('');
+  const [newItemUserEmail, setNewItemUserEmail] = useState('');
+  const [newItemTotalPieces, setNewItemTotalPieces] = useState('');
+  const [newItemTargetDate, setNewItemTargetDate] = useState('');
+
+  useEffect(() => {
+    fetchItems();
+  }, []);
+
+  const fetchItems = async () => {
+    try {
+      setLoading(true);
+      const data = await getItems();
+      setItems(data);
+    } catch (error) {
+      console.error('Error fetching items:', error);
+      alert('アイテムの取得に失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateItemId = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
     
-    def render(self, content) -> bytes:
-        return json.dumps(
-            content,
-            ensure_ascii=False,
-            allow_nan=False,
-            indent=None,
-            separators=(",", ":"),
-        ).encode("utf-8")
-
-app = FastAPI(
-    title="Digital Memo Tag API with Appwrite", 
-    version="2.0.0",
-    default_response_class=UnicodeJSONResponse
-)
-
-# CORS middleware
-origins = [
-    "http://localhost:3000",
-    "https://digitalmemotag.vercel.app",
-    "https://memotag.digital",
-    "https://www.memotag.digital"
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origin_regex=r"https://.*\.vercel\.app",
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Security
-security = HTTPBearer()
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "1234")
-
-# Appwrite configuration
-APPWRITE_ENDPOINT = os.getenv("APPWRITE_ENDPOINT", "https://cloud.appwrite.io/v1")
-APPWRITE_PROJECT_ID = os.getenv("APPWRITE_PROJECT_ID")
-APPWRITE_API_KEY = os.getenv("APPWRITE_API_KEY")
-DATABASE_ID = os.getenv("APPWRITE_DATABASE_ID", "memo_tag_db")
-
-# Collection IDs
-ITEMS_COLLECTION = os.getenv("APPWRITE_ITEMS_COLLECTION", "items")
-MESSAGES_COLLECTION = os.getenv("APPWRITE_MESSAGES_COLLECTION", "messages")
-SUBSCRIPTIONS_COLLECTION = os.getenv("APPWRITE_SUBSCRIPTIONS_COLLECTION", "email_subscriptions")
-
-# Resend configuration
-RESEND_API_KEY = os.getenv("RESEND_API_KEY")
-RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
-ADMIN_EMAIL_STRING = os.getenv("ADMIN_EMAIL", "")
-ADMIN_EMAILS = [email.strip() for email in ADMIN_EMAIL_STRING.split(',') if email.strip()]
-
-# Initialize Appwrite
-client = Client()
-client.set_endpoint(APPWRITE_ENDPOINT)
-client.set_project(APPWRITE_PROJECT_ID)
-client.set_key(APPWRITE_API_KEY)
-
-databases = Databases(client)
-
-# Initialize Resend
-if RESEND_API_KEY:
-    resend.api_key = RESEND_API_KEY
-
-print("="*60)
-print("🚀 Digital Memo Tag API with Appwrite + Resend")
-print("="*60)
-print(f"✅ Appwrite Endpoint: {APPWRITE_ENDPOINT}")
-print(f"✅ Project ID: {APPWRITE_PROJECT_ID}")
-print(f"✅ Database ID: {DATABASE_ID}")
-print(f"✅ Resend: {'Configured' if RESEND_API_KEY else 'Not configured'}")
-if ADMIN_EMAILS:
-    print(f"✅ Admin Emails: {len(ADMIN_EMAILS)} configured")
-    for email in ADMIN_EMAILS:
-        print(f"   📧 {email}")
-else:
-    print("⚠️ Admin Email: Not configured")
-print("="*60)
-
-# Pydantic models
-class ItemCreate(BaseModel):
-    item_id: str
-    name: str
-    location: str
-    status: str = "Working"
-    user_email: Optional[EmailStr] = None
-    total_pieces: Optional[int] = None
-    target_date: Optional[str] = None
-    progress: Optional[int] = 0
-
-class Item(BaseModel):
-    id: Optional[str] = None
-    item_id: str
-    name: str
-    location: str
-    status: str
-    user_email: Optional[str] = None
-    total_pieces: Optional[int] = None
-    target_date: Optional[str] = None
-    progress: Optional[int] = 0
-    created_at: Optional[str] = None
-
-class MessageCreate(BaseModel):
-    item_id: str
-    message: str
-    user_name: str = "匿名"
-    msg_type: str = "general"
-    send_notification: bool = False
-
-class Message(BaseModel):
-    id: Optional[str] = None
-    item_id: str
-    message: str
-    user_name: str
-    msg_type: str
-    created_at: Optional[str] = None
-
-class LoginRequest(BaseModel):
-    password: str
-
-class StatusUpdate(BaseModel):
-    status: str
-
-class ProgressUpdate(BaseModel):
-    progress: int
-
-class EmailSubscription(BaseModel):
-    item_id: str
-    email: EmailStr
-    notify_all: bool = False
-
-# Email notification function with Resend
-def send_email_notification(to_email: str, item_name: str, item_id: str, message: str, user_name: str):
-    """Send email notification using Resend"""
+    const todayPrefix = `${year}${month}${day}`;
+    const todayItems = items.filter(item => item.item_id.startsWith(todayPrefix));
+    const nextSequence = String(todayItems.length + 1).padStart(2, '0');
     
-    if not RESEND_API_KEY:
-        print("⚠️  Warning: Resend API key not configured")
-        return False
-    
-    try:
-        current_time = datetime.datetime.now(pytz.timezone('Asia/Tokyo')).strftime('%Y年%m月%d日 %H:%M')
-        
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
-            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px 20px; text-align: center;">
-                    <h1 style="margin: 0; font-size: 24px; font-weight: 600;">📱 デジタルメモタグシステム</h1>
-                    <p style="margin: 10px 0 0 0; font-size: 14px; opacity: 0.95;">新しいメッセージが投稿されました</p>
-                </div>
-                
-                <div style="padding: 30px 20px;">
-                    <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin-bottom: 25px; border-radius: 4px;">
-                        <p style="margin: 0; color: #92400e; font-weight: 600; font-size: 14px;">⚠️ 新しいメッセージ</p>
-                        <p style="margin: 5px 0 0 0; color: #92400e; font-size: 13px;">ご確認ください</p>
-                    </div>
-                    
-                    <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
-                        <h2 style="margin: 0 0 15px 0; font-size: 16px; color: #374151; font-weight: 600;">📋 機器情報</h2>
-                        <table style="width: 100%; border-collapse: collapse;">
-                            <tr>
-                                <td style="padding: 8px 0; font-weight: 500; color: #6b7280; font-size: 14px; width: 90px;">機器名</td>
-                                <td style="padding: 8px 0; color: #111827; font-size: 14px;">{item_name}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0; font-weight: 500; color: #6b7280; font-size: 14px;">機器ID</td>
-                                <td style="padding: 8px 0; color: #111827; font-size: 14px; font-family: 'Courier New', monospace;">{item_id}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0; font-weight: 500; color: #6b7280; font-size: 14px;">投稿者</td>
-                                <td style="padding: 8px 0; color: #111827; font-size: 14px;">{user_name}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0; font-weight: 500; color: #6b7280; font-size: 14px;">日時</td>
-                                <td style="padding: 8px 0; color: #111827; font-size: 14px;">{current_time}</td>
-                            </tr>
-                        </table>
-                    </div>
-                    
-                    <div style="background-color: #ffffff; border: 2px solid #667eea; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
-                        <h3 style="margin: 0 0 12px 0; font-size: 15px; color: #374151; font-weight: 600;">💬 メッセージ内容</h3>
-                        <p style="margin: 0; color: #111827; line-height: 1.6; white-space: pre-wrap; font-size: 14px;">{message}</p>
-                    </div>
-                    
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="https://digitalmemotag.vercel.app/memo/{item_id}" 
-                           style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                                  color: white; padding: 14px 40px; text-decoration: none; border-radius: 8px; 
-                                  font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px rgba(102, 126, 234, 0.4);">
-                            📋 メッセージボードを開く
-                        </a>
-                    </div>
-                    
-                    <div style="background-color: #eff6ff; border-radius: 8px; padding: 15px; margin-top: 25px;">
-                        <p style="margin: 0; font-size: 13px; color: #1e40af; line-height: 1.5;">
-                            💡 <strong>ヒント:</strong> このメールに返信することはできません。メッセージボードから返信してください。
-                        </p>
-                    </div>
-                </div>
-                
-                <div style="background-color: #f9fafb; padding: 25px 20px; text-align: center; border-top: 1px solid #e5e7eb;">
-                    <p style="margin: 0 0 8px 0; font-size: 12px; color: #6b7280;">
-                        このメールは自動送信されています
-                    </p>
-                    <p style="margin: 0 0 15px 0; font-size: 12px; color: #9ca3af;">
-                        デジタルメモタグシステム © 2025
-                    </p>
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-        
-        params = {
-            "from": RESEND_FROM_EMAIL,
-            "to": [to_email],
-            "subject": f"🔔 新規メッセージ通知: {item_name}",
-            "html": html_content,
+    return `${todayPrefix}-${nextSequence}`;
+  };
+
+  const handleAddItem = async () => {
+    if (!newItemName.trim()) {
+      alert('製品名を入力してください');
+      return;
+    }
+
+    try {
+      const itemId = generateItemId();
+      const itemData: any = {
+        item_id: itemId,
+        name: newItemName.trim(),
+        location: newItemLocation.trim() || '',
+        status: 'Working',
+        progress: 0
+      };
+
+      if (newItemUserEmail.trim()) {
+        itemData.user_email = newItemUserEmail.trim();
+      }
+      if (newItemTotalPieces) {
+        itemData.total_pieces = parseInt(newItemTotalPieces);
+      }
+      if (newItemTargetDate) {
+        itemData.target_date = newItemTargetDate;
+      }
+
+      await createItem(itemData);
+      
+      setNewItemName('');
+      setNewItemLocation('');
+      setNewItemUserEmail('');
+      setNewItemTotalPieces('');
+      setNewItemTargetDate('');
+      setShowAddForm(false);
+      await fetchItems();
+      alert('製品を追加しました');
+    } catch (error) {
+      console.error('Error adding item:', error);
+      alert('製品の追加に失敗しました');
+    }
+  };
+
+  const handleDeleteItem = async () => {
+    if (!itemToDelete) return;
+
+    try {
+      await deleteItem(itemToDelete.item_id);
+      await fetchItems();
+      setItemToDelete(null);
+      alert('製品を削除しました');
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      alert('削除に失敗しました');
+    }
+  };
+
+  const handleGenerateQRCode = async (item: Item) => {
+    try {
+      const url = `${window.location.origin}/memo/${item.item_id}`;
+      
+      const canvas = document.createElement('canvas');
+      const qrSize = 300;
+      const padding = 40;
+      const labelHeight = 80;
+      const totalHeight = qrSize + labelHeight + padding * 2;
+      const totalWidth = qrSize + padding * 2;
+      
+      canvas.width = totalWidth;
+      canvas.height = totalHeight;
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, totalWidth, totalHeight);
+      
+      await QRCode.toCanvas(canvas, url, {
+        width: qrSize,
+        margin: 0,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
         }
-        
-        email = resend.Emails.send(params)
-        
-        print(f"✅ Email sent to {to_email} - ID: {email.get('id', 'N/A')}")
-        return True
-        
-    except Exception as e:
-        print(f"❌ Error sending email to {to_email}: {str(e)}")
-        return False
-
-# Database class with Appwrite
-class Database:
-    def __init__(self):
-        self.databases = databases
-        self.database_id = DATABASE_ID
-        self.items_collection = ITEMS_COLLECTION
-        self.messages_collection = MESSAGES_COLLECTION
-        self.subscriptions_collection = SUBSCRIPTIONS_COLLECTION
-    
-    def get_items(self):
-        """Get all items"""
-        try:
-            result = self.databases.list_documents(
-                database_id=self.database_id,
-                collection_id=self.items_collection,
-                queries=[
-                    AppwriteQuery.order_desc('$createdAt'),
-                    AppwriteQuery.limit(100)
-                ]
-            )
-            
-            items = []
-            for doc in result['documents']:
-                item = {
-                    'id': doc['$id'],
-                    'item_id': doc['item_id'],
-                    'name': doc['name'],
-                    'location': doc['location'],
-                    'status': doc['status'],
-                    'user_email': doc.get('user_email'),
-                    'total_pieces': doc.get('total_pieces'),
-                    'target_date': doc.get('target_date'),
-                    'progress': doc.get('progress', 0),
-                    'created_at': doc.get('$createdAt'),
-                    'updated_at': doc.get('$updatedAt')
-                }
-                items.append(item)
-            
-            return items
-        except AppwriteException as e:
-            print(f"❌ Appwrite error getting items: {e.message}")
-            return []
-        except Exception as e:
-            print(f"❌ Error getting items: {e}")
-            return []
-    
-    def get_item_by_id(self, item_id: str):
-        """Get single item by item_id"""
-        try:
-            result = self.databases.list_documents(
-                database_id=self.database_id,
-                collection_id=self.items_collection,
-                queries=[
-                    AppwriteQuery.equal('item_id', item_id),
-                    AppwriteQuery.limit(1)
-                ]
-            )
-            
-            if result['total'] > 0:
-                doc = result['documents'][0]
-                return {
-                    'id': doc['$id'],
-                    'item_id': doc['item_id'],
-                    'name': doc['name'],
-                    'location': doc['location'],
-                    'status': doc['status'],
-                    'user_email': doc.get('user_email'),
-                    'total_pieces': doc.get('total_pieces'),
-                    'target_date': doc.get('target_date'),
-                    'progress': doc.get('progress', 0),
-                    'created_at': doc.get('$createdAt')
-                }
-            return None
-        except Exception as e:
-            print(f"❌ Error getting item: {e}")
-            return None
-    
-    def get_messages(self, item_id=None):
-        """Get messages, optionally filtered by item_id"""
-        try:
-            queries = [
-                AppwriteQuery.order_desc('$createdAt'),
-                AppwriteQuery.limit(100)
-            ]
-            
-            if item_id:
-                queries.append(AppwriteQuery.equal('item_id', item_id))
-            
-            result = self.databases.list_documents(
-                database_id=self.database_id,
-                collection_id=self.messages_collection,
-                queries=queries
-            )
-            
-            messages = []
-            for doc in result['documents']:
-                msg = {
-                    'id': doc['$id'],
-                    'item_id': doc['item_id'],
-                    'message': doc['message'],
-                    'user_name': doc.get('user_name', '匿名'),
-                    'msg_type': doc.get('msg_type', 'general'),
-                    'created_at': doc.get('$createdAt')
-                }
-                messages.append(msg)
-            
-            return messages
-        except Exception as e:
-            print(f"❌ Error getting messages: {e}")
-            return []
-    
-    def add_item(self, item_id, name, location, status="Working", user_email=None, 
-                 total_pieces=None, target_date=None, progress=0):
-        """Add new item with progress tracking"""
-        try:
-            existing = self.get_item_by_id(item_id)
-            if existing:
-                return False, "Item ID already exists"
-            
-            data = {
-                'item_id': item_id,
-                'name': name,
-                'location': location,
-                'status': status,
-                'progress': progress
-            }
-            
-            if user_email:
-                data['user_email'] = user_email
-            if total_pieces is not None:
-                data['total_pieces'] = total_pieces
-            if target_date:
-                data['target_date'] = target_date
-            
-            doc = self.databases.create_document(
-                database_id=self.database_id,
-                collection_id=self.items_collection,
-                document_id=ID.unique(),
-                data=data
-            )
-            
-            print(f"✅ Added item: {item_id} - {name}")
-            return True, "Success"
-        except AppwriteException as e:
-            print(f"❌ Appwrite error adding item: {e.message}")
-            return False, e.message
-        except Exception as e:
-            print(f"❌ Error adding item: {e}")
-            return False, str(e)
-    
-    def add_message(self, item_id, message, user_name, msg_type="general", send_notification=False):
-        """Add new message and optionally send notifications"""
-        try:
-            user_name = user_name.strip() if user_name and user_name.strip() else "匿名"
-            message = message.strip() if message else ""
-            
-            if not message:
-                return False, "Message is empty"
-            
-            item = self.get_item_by_id(item_id)
-            if not item:
-                return False, "Item not found"
-            
-            doc = self.databases.create_document(
-                database_id=self.database_id,
-                collection_id=self.messages_collection,
-                document_id=ID.unique(),
-                data={
-                    'item_id': item_id,
-                    'message': message,
-                    'user_name': user_name,
-                    'msg_type': msg_type
-                }
-            )
-            
-            print(f"✅ Message added: {item_id} by {user_name}")
-            
-            if send_notification:
-                item_name = item['name']
-                user_email = item.get('user_email')
-                
-                if user_name in ['管理者', 'admin', 'Admin', 'Administrator']:
-                    if user_email:
-                        print(f"📧 Sending notification from admin to user: {user_email}")
-                        send_email_notification(user_email, item_name, item_id, message, user_name)
-                    else:
-                        print("⚠️ User email not configured for this item")
-                else:
-                    if ADMIN_EMAILS:
-                        print(f"📧 Sending notification from user to {len(ADMIN_EMAILS)} admin(s)")
-                        success_count = 0
-                        for admin_email in ADMIN_EMAILS:
-                            if send_email_notification(admin_email, item_name, item_id, message, user_name):
-                                success_count += 1
-                        print(f"✅ Sent to {success_count}/{len(ADMIN_EMAILS)} admin(s)")
-                    else:
-                        print("⚠️ No admin emails configured")
-            
-            return True, "Message posted successfully"
-            
-        except AppwriteException as e:
-            print(f"❌ Appwrite error adding message: {e.message}")
-            return False, f"Failed to post message: {e.message}"
-        except Exception as e:
-            print(f"❌ Error adding message: {e}")
-            return False, f"Unexpected error: {str(e)}"
-    
-    def update_item_status(self, item_id, status):
-        """Update item status"""
-        try:
-            item = self.get_item_by_id(item_id)
-            
-            if not item:
-                return False
-            
-            self.databases.update_document(
-                database_id=self.database_id,
-                collection_id=self.items_collection,
-                document_id=item['id'],
-                data={
-                    'status': status
-                }
-            )
-            
-            print(f"✅ Status updated: {item_id} -> {status}")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Error updating status: {e}")
-            return False
-    
-    def update_item_progress(self, item_id, progress):
-        """Update item progress"""
-        try:
-            item = self.get_item_by_id(item_id)
-            
-            if not item:
-                print(f"❌ Item not found: {item_id}")
-                return False
-            
-            self.databases.update_document(
-                database_id=self.database_id,
-                collection_id=self.items_collection,
-                document_id=item['id'],
-                data={
-                    'progress': progress
-                }
-            )
-            
-            print(f"✅ Progress updated: {item_id} -> {progress}%")
-            return True
-            
-        except AppwriteException as e:
-            print(f"❌ Appwrite error updating progress: {e.message}")
-            return False
-        except Exception as e:
-            print(f"❌ Error updating progress: {e}")
-            return False
-    
-    def delete_item(self, item_id):
-        """Delete item and all related data"""
-        try:
-            item = self.get_item_by_id(item_id)
-            
-            if not item:
-                return False
-            
-            messages = self.get_messages(item_id)
-            for msg in messages:
-                self.databases.delete_document(
-                    database_id=self.database_id,
-                    collection_id=self.messages_collection,
-                    document_id=msg['id']
-                )
-            
-            self.databases.delete_document(
-                database_id=self.database_id,
-                collection_id=self.items_collection,
-                document_id=item['id']
-            )
-            
-            print(f"✅ Item deleted: {item_id} (including {len(messages)} messages)")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Error deleting item: {e}")
-            return False
-
-# Initialize database
-db = Database()
-
-# Auth functions
-def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    if credentials.credentials != ADMIN_PASSWORD:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials"
-        )
-    return credentials.credentials
-
-def format_timestamp_jst(timestamp_str):
-    """Convert UTC timestamp to JST"""
-    if not timestamp_str:
-        return "時刻不明"
-    
-    try:
-        if timestamp_str.endswith('Z'):
-            dt_utc = datetime.datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-        elif '+00:00' in timestamp_str:
-            dt_utc = datetime.datetime.fromisoformat(timestamp_str)
-        else:
-            dt_utc = datetime.datetime.fromisoformat(timestamp_str).replace(tzinfo=datetime.timezone.utc)
-        
-        jst = pytz.timezone('Asia/Tokyo')
-        dt_jst = dt_utc.astimezone(jst)
-        
-        return dt_jst.strftime("%Y年%m月%d日 %H:%M")
-    except Exception as e:
-        return "時刻不明"
-
-# API Routes
-@app.get("/")
-def read_root():
-    return {
-        "message": "Digital Memo Tag API with Appwrite + Resend",
-        "version": "2.0.0",
-        "database": "Appwrite",
-        "email": "Resend" if RESEND_API_KEY else "Not configured"
+      });
+      
+      const compositeCanvas = document.createElement('canvas');
+      compositeCanvas.width = totalWidth;
+      compositeCanvas.height = totalHeight;
+      const compositeCtx = compositeCanvas.getContext('2d');
+      if (!compositeCtx) return;
+      
+      compositeCtx.fillStyle = '#FFFFFF';
+      compositeCtx.fillRect(0, 0, totalWidth, totalHeight);
+      
+      compositeCtx.drawImage(canvas, padding, padding, qrSize, qrSize);
+      
+      compositeCtx.fillStyle = '#000000';
+      compositeCtx.font = 'bold 20px Arial, sans-serif';
+      compositeCtx.textAlign = 'center';
+      compositeCtx.textBaseline = 'top';
+      
+      const textY = qrSize + padding + 15;
+      compositeCtx.fillText(item.name, totalWidth / 2, textY);
+      
+      compositeCtx.font = '14px Arial, sans-serif';
+      compositeCtx.fillStyle = '#666666';
+      compositeCtx.fillText(`ID: ${item.item_id}`, totalWidth / 2, textY + 30);
+      
+      const qrDataUrl = compositeCanvas.toDataURL('image/png');
+      
+      setQrCodeDataUrl(qrDataUrl);
+      setQrCodeItem(item);
+    } catch (error) {
+      console.error('Error generating QR code:', error);
+      alert('QRコードの生成に失敗しました');
     }
+  };
 
-@app.post("/login")
-def login(request: LoginRequest):
-    if request.password == ADMIN_PASSWORD:
-        return {"success": True, "token": ADMIN_PASSWORD}
-    else:
-        raise HTTPException(status_code=401, detail="Invalid password")
+  const handleDownloadQRCode = () => {
+    if (!qrCodeDataUrl || !qrCodeItem) return;
 
-@app.get("/items")
-def get_items():
-    items = db.get_items()
-    return JSONResponse(content=items, media_type="application/json; charset=utf-8")
+    const link = document.createElement('a');
+    link.download = `QR_${qrCodeItem.name}_${qrCodeItem.item_id}.png`;
+    link.href = qrCodeDataUrl;
+    link.click();
+  };
 
-@app.get("/items/{item_id}")
-def get_item(item_id: str):
-    item = db.get_item_by_id(item_id)
-    if item:
-        return item
-    raise HTTPException(status_code=404, detail="Item not found")
+  const handleLogout = () => {
+    localStorage.removeItem('authToken');
+    router.push('/login');
+  };
 
-@app.post("/items")
-def create_item(item: ItemCreate, _: str = Depends(verify_admin_token)):
-    success, message = db.add_item(
-        item.item_id, 
-        item.name, 
-        item.location, 
-        item.status,
-        item.user_email,
-        item.total_pieces,
-        item.target_date,
-        item.progress
-    )
-    if success:
-        return {"success": True, "message": message}
-    else:
-        raise HTTPException(status_code=400, detail=message)
+  const handleViewMessages = (item: Item) => {
+    router.push(`/memo/${item.item_id}`);
+  };
 
-@app.patch("/items/{item_id}/status")
-def update_item_status(item_id: str, status_update: StatusUpdate, _: str = Depends(verify_admin_token)):
-    success = db.update_item_status(item_id, status_update.status)
-    if success:
-        return {"success": True, "message": "Status updated"}
-    else:
-        raise HTTPException(status_code=400, detail="Failed to update status")
+  const getStatusFromProgress = (progress?: number): string => {
+    if (!progress && progress !== 0) return 'Working';
+    if (progress === 100) return 'Completed';
+    if (progress >= 75) return 'Working';
+    if (progress < 25) return 'Delayed';
+    return 'Working';
+  };
 
-@app.patch("/items/{item_id}/progress")
-def update_item_progress(item_id: str, progress: int = Query(..., ge=0, le=100)):
-    """Update item progress (0-100%) - Available to all users"""
-    if progress < 0 or progress > 100:
-        raise HTTPException(status_code=400, detail="Progress must be between 0 and 100")
-    
-    success = db.update_item_progress(item_id, progress)
-    if success:
-        if progress == 100:
-            db.update_item_status(item_id, "Completed")
-        elif progress >= 75:
-            db.update_item_status(item_id, "Working")
-        elif progress < 25:
-            db.update_item_status(item_id, "Delayed")
-        
-        return {"success": True, "message": "Progress updated"}
-    else:
-        raise HTTPException(status_code=400, detail="Failed to update progress")
-
-@app.delete("/items/{item_id}")
-def delete_item(item_id: str, _: str = Depends(verify_admin_token)):
-    success = db.delete_item(item_id)
-    if success:
-        return {"success": True, "message": "Item deleted"}
-    else:
-        raise HTTPException(status_code=400, detail="Failed to delete item")
-
-@app.get("/messages", response_model=List[Message])
-def get_messages(item_id: Optional[str] = None):
-    messages = db.get_messages(item_id)
-    for msg in messages:
-        msg['formatted_time'] = format_timestamp_jst(msg.get('created_at', ''))
-    return messages
-
-@app.post("/messages")
-def create_message(message: MessageCreate):
-    success, error_msg = db.add_message(
-        message.item_id, 
-        message.message, 
-        message.user_name, 
-        message.msg_type,
-        message.send_notification
-    )
-    if success:
-        return {"success": True, "message": "Message posted successfully"}
-    else:
-        raise HTTPException(status_code=400, detail=error_msg)
-    
-@app.delete("/messages/{message_id}")    
-def delete_message(message_id: str, _: str = Depends(verify_admin_token)):
-    """Delete a specific message"""
-    try:
-        db.databases.delete_document(
-            database_id=DATABASE_ID,
-            collection_id=MESSAGES_COLLECTION,
-            document_id=message_id
-        )
-        return {"success": True, "message": "Message deleted"}
-    except Exception as e:
-        print(f"❌ Error deleting message: {e}")
-        raise HTTPException(status_code=400, detail=f"Failed to delete message: {str(e)}")
-
-@app.get("/health")
-def health_check():
-    return {
-        "status": "healthy",
-        "timestamp": datetime.datetime.now().isoformat(),
-        "database": "Appwrite",
-        "email": "Resend configured" if RESEND_API_KEY else "Resend not configured"
+  const getStatusColor = (status: string): string => {
+    switch (status) {
+      case 'Working':
+        return 'bg-blue-100 text-blue-800';
+      case 'Completed':
+        return 'bg-green-100 text-green-800';
+      case 'Delayed':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
+  };
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+  const formatUserEmails = (emailString?: string) => {
+    if (!emailString) return '未設定';
+    
+    const emails = emailString.split(',').map(e => e.trim()).filter(e => e);
+    
+    if (emails.length === 0) return '未設定';
+    if (emails.length === 1) return emails[0];
+    
+    return `${emails[0]}... (+${emails.length - 1})`;
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold">管理ダッシュボード</h1>
+            <p className="text-sm text-gray-600">デジタルメモタグシステム</p>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+          >
+            ログアウト
+          </button>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Add Item Button */}
+        <div className="mb-6">
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+          >
+            + 新しい製品タグを作成
+          </button>
+        </div>
+
+        {/* Add Item Form */}
+        {showAddForm && (
+          <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h3 className="text-lg font-bold mb-4">新製品追加</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">製品名 *</label>
+                <input
+                  type="text"
+                  value={newItemName}
+                  onChange={(e) => setNewItemName(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="製品名を入力"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">保管場所</label>
+                <input
+                  type="text"
+                  value={newItemLocation}
+                  onChange={(e) => setNewItemLocation(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="保管場所を入力"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  担当者メール
+                  <span className="text-xs text-gray-500 ml-2">(複数可、カンマ区切り)</span>
+                </label>
+                <input
+                  type="text"
+                  value={newItemUserEmail}
+                  onChange={(e) => setNewItemUserEmail(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="user1@email.com, user2@email.com"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  💡 複数のメールアドレスを登録する場合はカンマ(,)で区切ってください
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">総数量</label>
+                <input
+                  type="number"
+                  value={newItemTotalPieces}
+                  onChange={(e) => setNewItemTotalPieces(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="例: 100"
+                  min="1"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">目標完了日</label>
+                <input
+                  type="date"
+                  value={newItemTargetDate}
+                  onChange={(e) => setNewItemTargetDate(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  min={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={handleAddItem}
+                className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600"
+              >
+                追加
+              </button>
+              <button
+                onClick={() => setShowAddForm(false)}
+                className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Items Table */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">製品名</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">保管場所</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">担当者</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">進捗</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ステータス</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {items.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                      製品がありません。新しい製品を追加してください。
+                    </td>
+                  </tr>
+                ) : (
+                  items.map((item) => {
+                    const itemStatus = getStatusFromProgress(item.progress);
+                    return (
+                      <tr key={item.item_id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {item.item_id}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {item.name}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {item.location}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <div 
+                            className="max-w-xs truncate cursor-help" 
+                            title={item.user_email || '未設定'}
+                          >
+                            {formatUserEmails(item.user_email)}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {item.progress !== undefined ? `${item.progress}%` : '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(itemStatus)}`}>
+                            {itemStatus}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleGenerateQRCode(item)}
+                              className="px-3 py-1.5 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors flex items-center gap-1 text-xs font-medium"
+                              title="QRコード生成"
+                            >
+                              <span>📱</span>
+                              <span>QR</span>
+                            </button>
+                            <button
+                              onClick={() => handleViewMessages(item)}
+                              className="px-3 py-1.5 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center gap-1 text-xs font-medium"
+                              title="メッセージボードを開く"
+                            >
+                              <span>💬</span>
+                              <span>メッセージ</span>
+                            </button>
+                            <button
+                              onClick={() => setItemToDelete(item)}
+                              className="px-3 py-1.5 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors flex items-center gap-1 text-xs font-medium"
+                              title="削除"
+                            >
+                              <span>🗑️</span>
+                              <span>削除</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* QR Code Modal */}
+        {qrCodeItem && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+              <div className="text-center">
+                <h3 className="text-lg font-bold mb-4">QRコード</h3>
+                <div className="mb-4">
+                  <img src={qrCodeDataUrl} alt="QR Code with Label" className="mx-auto border border-gray-300 rounded" />
+                </div>
+                <div className="flex gap-2 justify-center">
+                  <button
+                    onClick={handleDownloadQRCode}
+                    className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600"
+                  >
+                    ダウンロード
+                  </button>
+                  <button
+                    onClick={() => {
+                      setQrCodeItem(null);
+                      setQrCodeDataUrl('');
+                    }}
+                    className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+                  >
+                    閉じる
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {itemToDelete && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full">
+              <div className="text-center">
+                <h3 className="text-lg font-bold mb-4">削除確認</h3>
+                <p className="text-sm text-gray-600 mb-2">以下の製品を削除してもよろしいですか？</p>
+                <p className="text-sm font-medium mb-4">
+                  {itemToDelete.name} (ID: {itemToDelete.item_id})
+                </p>
+                <p className="text-xs text-red-600 mb-6">
+                  ※ この操作は取り消せません
+                </p>
+                <div className="flex gap-2 justify-center">
+                  <button
+                    onClick={handleDeleteItem}
+                    className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
+                  >
+                    削除する
+                  </button>
+                  <button
+                    onClick={() => setItemToDelete(null)}
+                    className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default AdminDashboard;
