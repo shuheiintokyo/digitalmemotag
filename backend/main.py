@@ -40,22 +40,17 @@ app = FastAPI(
 # CORS middleware
 origins = [
     "http://localhost:3000",
-    "http://localhost:3001",
     "https://digitalmemotag.vercel.app",
-    "https://digitalmemotag-backend.vercel.app",  # ← Add this!
-    "https://memotag.digital",
-    "https://www.memotag.digital",
+    "https://memotag.digital",          # ← Your custom domain
+    "https://www.memotag.digital"       # ← With www
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ← Temporarily allow all origins for debugging
-    # OR use this for production:
-    # allow_origins=origins,
+    allow_origins=origins,  # ✅ Use only this
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],  # ← Add this
 )
 
 # Security
