@@ -16,7 +16,6 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
   
   const [userName, setUserName] = useState('');
   const [message, setMessage] = useState('');
-  const [sendNotification, setSendNotification] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
 
@@ -32,9 +31,9 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
     }
     
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemId]);
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
@@ -51,8 +50,7 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
         getMessages(itemId)
       ]);
       setItem(itemData);
-      // Reverse the messages so newest appear at bottom
-      setMessages(messagesData.reverse());
+      setMessages([...messagesData].reverse());
       setError(null);
     } catch (err) {
       setError('アイテムまたはメッセージの取得に失敗しました');
@@ -62,28 +60,32 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
     }
   };
 
-  const handleSubmitMessage = async (e: React.FormEvent) => {
+  const handleSubmitMessage = async (e: React.FormEvent, shouldNotify: boolean = false) => {
     e.preventDefault();
     if (!message.trim()) return;
 
     setPostLoading(true);
     try {
+      console.log('📤 Sending message with notification:', shouldNotify);
+      
       await createMessage({
         item_id: itemId,
         message: message.trim(),
         user_name: userName.trim() || '匿名',
         msg_type: 'general',
-        send_notification: sendNotification
+        send_notification: shouldNotify
       });
       
       setMessage('');
-      setSendNotification(false);
       setShowOptions(false);
       await fetchData();
       
-      // Reset textarea height
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
+      }
+      
+      if (shouldNotify) {
+        console.log('✅ Message sent with email notification');
       }
     } catch (err) {
       setError('メッセージの投稿に失敗しました');
@@ -108,7 +110,6 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMessage(e.target.value);
-    // Auto-resize textarea
     e.target.style.height = 'auto';
     e.target.style.height = e.target.scrollHeight + 'px';
   };
@@ -116,12 +117,13 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmitMessage(e);
+      handleSubmitMessage(e, false);
     }
   };
 
   const isAdminMessage = (msg: Message): boolean => {
-    return ['管理者', 'admin', 'Admin', 'Administrator'].includes(msg.user_name);
+    const adminNames = ['管理者', 'admin', 'Admin', 'Administrator'];
+    return adminNames.indexOf(msg.user_name) !== -1;
   };
 
   if (loading) {
@@ -155,7 +157,6 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
 
   return (
     <div className="flex flex-col h-screen bg-gray-100 overflow-hidden">
-      {/* Header */}
       <div className="bg-white shadow-sm flex-shrink-0">
         <div className="max-w-2xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
           <div className="flex items-center justify-between">
@@ -172,10 +173,8 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
         </div>
       </div>
 
-      {/* Scrollable Content Area */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto px-3 sm:px-4 py-3 sm:py-4 space-y-4 sm:space-y-6">
-          {/* Progress Slider */}
           {item && item.total_pieces && item.total_pieces > 0 && (
             <ProgressSlider
               itemId={item.item_id}
@@ -186,7 +185,6 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
             />
           )}
 
-          {/* Messages Section */}
           <div className="space-y-3 pb-4">
             <div className="flex items-center justify-between mb-3 sm:mb-4">
               <h2 className="text-xs sm:text-sm font-medium text-gray-600">💬 {messages.length} 件のメッセージ</h2>
@@ -242,10 +240,8 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
         </div>
       </div>
 
-      {/* Fixed Bottom Input Area - Mobile Optimized */}
       <div className="bg-white border-t border-gray-200 shadow-lg flex-shrink-0 safe-bottom">
         <div className="max-w-2xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
-          {/* Options Panel - Collapsible (Name only for non-admin) */}
           {showOptions && !isAdmin && (
             <div className="mb-3 animate-slideDown">
               <input
@@ -258,7 +254,6 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
             </div>
           )}
 
-          {/* Main Input Area */}
           <div className="flex items-end gap-2">
             {!isAdmin && (
               <button
@@ -282,37 +277,29 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
               style={{ minHeight: '40px' }}
             />
 
-            {/* Send Button - Just Post */}
             <button
               type="button"
-              onClick={(e) => {
-                setSendNotification(false);
-                handleSubmitMessage(e as any);
-              }}
+              onClick={(e) => handleSubmitMessage(e, false)}
               disabled={!message.trim() || postLoading}
               className="flex-shrink-0 w-10 h-10 sm:w-10 sm:h-10 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors touch-manipulation"
               title="送信"
             >
-              {postLoading && !sendNotification ? (
+              {postLoading ? (
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
               ) : (
                 <span className="text-lg">➤</span>
               )}
             </button>
 
-            {/* Send with Email Button - Post AND Notify */}
             {((isAdmin && item?.user_email) || !isAdmin) && (
               <button
                 type="button"
-                onClick={(e) => {
-                  setSendNotification(true);
-                  setTimeout(() => handleSubmitMessage(e as any), 0);
-                }}
+                onClick={(e) => handleSubmitMessage(e, true)}
                 disabled={!message.trim() || postLoading}
                 className="flex-shrink-0 w-10 h-10 sm:w-10 sm:h-10 rounded-full bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors touch-manipulation"
                 title={isAdmin ? "送信 + 担当者に通知" : "送信 + 管理者に通知"}
               >
-                {postLoading && sendNotification ? (
+                {postLoading ? (
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                 ) : (
                   <span className="text-lg">📧</span>
@@ -321,7 +308,6 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
             )}
           </div>
 
-          {/* Helper text - Hide on very small screens */}
           <div className="mt-2 text-xs text-gray-500 text-center hidden sm:block">
             <span className="inline-flex items-center gap-3">
               <span>➤ 投稿のみ</span>
