@@ -1076,6 +1076,32 @@ def debug_item(item_id: str):
 async def test_endpoint():
     return {"message": "Test endpoint works!", "time": datetime.datetime.now().isoformat()}
 
+@app.get("/test-update/{item_id}/{progress}")
+async def test_direct_update(item_id: str, progress: int):
+    """Direct test of Appwrite update"""
+    try:
+        # Get item first
+        item = db.get_item_by_id(item_id)
+        if not item:
+            return {"error": "Item not found"}
+        
+        print(f"Found item: {item['name']} with doc ID: {item['id']}")
+        
+        # Try direct Appwrite update
+        result = db.databases.update_document(
+            database_id=db.database_id,
+            collection_id=db.items_collection,
+            document_id=item['id'],
+            data={'progress': progress}
+        )
+        
+        print(f"Appwrite response: {result}")
+        return {"success": True, "updated": result}
+        
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return {"error": str(e), "type": type(e).__name__}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
