@@ -905,7 +905,7 @@ def health_check():
 
 # PUBLIC PROGRESS ENDPOINT - NO AUTH REQUIRED
 @app.get("/public/progress/{item_id}/{progress}")
-def public_update_progress(item_id: str, progress: int):
+async def public_update_progress(item_id: str, progress: int):
     """
     Public endpoint for progress updates - NO AUTH REQUIRED
     This endpoint allows anyone to update progress without authentication
@@ -1017,6 +1017,10 @@ def debug_item(item_id: str):
         "appwrite_doc_id": item.get('id'),
         "current_progress": item.get('progress', 0)
     }
+
+@app.get("/test")
+async def test_endpoint():
+    return {"message": "Test endpoint works!", "time": datetime.datetime.now().isoformat()}
 
 if __name__ == "__main__":
     import uvicorn
