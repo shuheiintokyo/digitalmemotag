@@ -619,7 +619,54 @@ def login(request: LoginRequest):
         raise HTTPException(status_code=401, detail="Invalid password")
 
 @app.get("/items")
-def get_items():
+def get_items(update_progress: Optional[str] = None):
+    # Check if this is a progress update request
+    if update_progress:
+        print(f"📊 Progress update via /items endpoint: {update_progress}")
+        try:
+            # Parse "item_id,progress" format
+            parts = update_progress.split(',')
+            if len(parts) == 2:
+                item_id, progress_str = parts
+                progress = int(progress_str)
+                
+                print(f"   Item ID: {item_id}")
+                print(f"   Progress: {progress}")
+                
+                if 0 <= progress <= 100:
+                    # First check if item exists
+                    item = db.get_item_by_id(item_id)
+                    if not item:
+                        print(f"❌ Item {item_id} not found")
+                        return {"success": False, "error": "Item not found"}
+                    
+                    print(f"✅ Item found: {item['name']}")
+                    print(f"   Current progress: {item.get('progress', 0)}%")
+                    
+                    success = db.update_item_progress(item_id, progress)
+                    if success:
+                        print(f"✅ Progress updated successfully to {progress}%")
+                        
+                        # Auto update status
+                        if progress == 100:
+                            db.update_item_status(item_id, "Completed")
+                        elif progress >= 75:
+                            db.update_item_status(item_id, "Working")
+                        elif progress < 25:
+                            db.update_item_status(item_id, "Delayed")
+                        
+                        return {"success": True, "message": "Progress updated", "progress": progress}
+                    else:
+                        print(f"❌ Database update failed")
+                        return {"success": False, "error": "Failed to update progress in database"}
+                else:
+                    return {"success": False, "error": "Progress must be 0-100"}
+        except Exception as e:
+            print(f"❌ Exception in progress update: {str(e)}")
+            traceback.print_exc()
+            return {"success": False, "error": str(e)}
+    
+    # Normal items listing
     items = db.get_items()
     return JSONResponse(content=items, media_type="application/json; charset=utf-8")
 
@@ -688,9 +735,16 @@ def update_item_progress(item_id: str, progress: int = Query(..., ge=0, le=100))
                 db.update_item_status(item_id, "Delayed")
             
             print("="*60)
-            return {"success": True, "message": "Item deleted"}
-    else:
-        raise HTTPException(status_code=400, detail="Failed to delete item")
+            return {"success": True, "message": "Progress updated"}  # ✅ FIXED MESSAGE
+        else:
+            print(f"❌ Database update failed")
+            print("="*60)
+            raise HTTPException(status_code=404, detail="Item not found")
+            
+    except Exception as e:
+        print(f"❌ Exception in update_item_progress: {str(e)}")
+        print("="*60)
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
 @app.get("/messages", response_model=List[Message])
 def get_messages(item_id: Optional[str] = None):
