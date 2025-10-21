@@ -622,31 +622,15 @@ def login(request: LoginRequest):
 def get_items(update_progress: Optional[str] = None):
     # Check if this is a progress update request
     if update_progress:
-        print(f"📊 Progress update via /items endpoint: {update_progress}")
         try:
-            # Parse "item_id,progress" format
             parts = update_progress.split(',')
             if len(parts) == 2:
                 item_id, progress_str = parts
                 progress = int(progress_str)
                 
-                print(f"   Item ID: {item_id}")
-                print(f"   Progress: {progress}")
-                
                 if 0 <= progress <= 100:
-                    # First check if item exists
-                    item = db.get_item_by_id(item_id)
-                    if not item:
-                        print(f"❌ Item {item_id} not found")
-                        return {"success": False, "error": "Item not found"}
-                    
-                    print(f"✅ Item found: {item['name']}")
-                    print(f"   Current progress: {item.get('progress', 0)}%")
-                    
                     success = db.update_item_progress(item_id, progress)
                     if success:
-                        print(f"✅ Progress updated successfully to {progress}%")
-                        
                         # Auto update status
                         if progress == 100:
                             db.update_item_status(item_id, "Completed")
@@ -655,21 +639,18 @@ def get_items(update_progress: Optional[str] = None):
                         elif progress < 25:
                             db.update_item_status(item_id, "Delayed")
                         
+                        # Return JSON directly, not JSONResponse
                         return {"success": True, "message": "Progress updated", "progress": progress}
                     else:
-                        print(f"❌ Database update failed")
-                        return {"success": False, "error": "Failed to update progress in database"}
+                        return {"success": False, "error": "Failed to update progress"}
                 else:
                     return {"success": False, "error": "Progress must be 0-100"}
         except Exception as e:
-            print(f"❌ Exception in progress update: {str(e)}")
-            traceback.print_exc()
             return {"success": False, "error": str(e)}
     
     # Normal items listing
     items = db.get_items()
     return JSONResponse(content=items, media_type="application/json; charset=utf-8")
-
 @app.get("/items/{item_id}")
 def get_item(item_id: str):
     item = db.get_item_by_id(item_id)
