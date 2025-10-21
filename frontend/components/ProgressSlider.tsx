@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface ProgressSliderProps {
   itemId: string;
   totalPieces: number;
   currentProgress: number;
   targetDate?: string;
-  onProgressUpdate?: (progress: number) => void;
+  onProgressUpdate?: (progress: number) => Promise<void>;
 }
 
 const ProgressSlider: React.FC<ProgressSliderProps> = ({ 
@@ -20,6 +20,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -29,6 +30,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
     setProgress(currentProgress);
     setCompletedPieces(Math.round((currentProgress / 100) * totalPieces));
     setHasUnsavedChanges(false);
+    setSaveError(null);
   }, [currentProgress, totalPieces]);
 
   // Auto-save after 3 seconds of inactivity
@@ -50,14 +52,20 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
         clearTimeout(saveTimeoutRef.current);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [progress, isDragging, currentProgress, hasUnsavedChanges]);
 
   const saveProgress = async () => {
     try {
       setIsSaving(true);
       setSaveSuccess(false);
+      setSaveError(null);
       
-      console.log('💾 Saving progress to backend:', progress);
+      console.log(`💾 Saving progress for item ${itemId}: ${progress}%`);
+      
+      // Check if we're admin or regular user
+      const isAdmin = typeof window !== 'undefined' ? !!localStorage.getItem('authToken') : false;
+      console.log(`👤 User type: ${isAdmin ? 'Admin' : 'Regular User'}`);
       
       if (onProgressUpdate) {
         await onProgressUpdate(progress);
@@ -71,9 +79,42 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
       setTimeout(() => {
         setSaveSuccess(false);
       }, 2000);
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Failed to save progress:', error);
-      alert('進捗の保存に失敗しました。もう一度お試しください。');
+      
+      // Better error message handling
+      let errorMessage = '進捗の保存に失敗しました。';
+      
+      if (error.response) {
+        // The request was made and the server responded with a status code
+        console.error('Server error response:', error.response.data);
+        console.error('Status code:', error.response.status);
+        
+        if (error.response.status === 401) {
+          errorMessage = '認証エラー: ページを再読み込みしてください。';
+        } else if (error.response.status === 400) {
+          errorMessage = `エラー: ${error.response.data.detail || '無効な進捗値です。'}`;
+        } else if (error.response.status === 404) {
+          errorMessage = 'アイテムが見つかりません。';
+        } else if (error.response.status >= 500) {
+          errorMessage = 'サーバーエラーが発生しました。しばらく待ってから再試行してください。';
+        }
+      } else if (error.request) {
+        // The request was made but no response was received
+        console.error('No response received:', error.request);
+        errorMessage = 'サーバーに接続できません。ネットワーク接続を確認してください。';
+      } else {
+        // Something happened in setting up the request
+        console.error('Request setup error:', error.message);
+      }
+      
+      setSaveError(errorMessage);
+      setHasUnsavedChanges(true); // Keep the unsaved changes flag
+      
+      // Auto-hide error after 5 seconds
+      setTimeout(() => {
+        setSaveError(null);
+      }, 5000);
     } finally {
       setIsSaving(false);
     }
@@ -104,6 +145,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
     setProgress(Math.round(percentage));
     setCompletedPieces(Math.round((percentage / 100) * totalPieces));
     setHasUnsavedChanges(true);
+    setSaveError(null); // Clear any previous errors when user interacts
   };
 
   const handleSliderEnd = () => {
@@ -116,6 +158,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
       setCompletedPieces(0);
       setProgress(0);
       setHasUnsavedChanges(true);
+      setSaveError(null);
       return;
     }
     const value = parseInt(inputValue);
@@ -125,6 +168,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
     const percentage = Math.round((clampedValue / totalPieces) * 100);
     setProgress(percentage);
     setHasUnsavedChanges(true);
+    setSaveError(null);
   };
 
   const handlePercentageInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,6 +177,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
       setProgress(0);
       setCompletedPieces(0);
       setHasUnsavedChanges(true);
+      setSaveError(null);
       return;
     }
     const value = parseInt(inputValue);
@@ -141,6 +186,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
     setProgress(clampedValue);
     setCompletedPieces(Math.round((clampedValue / 100) * totalPieces));
     setHasUnsavedChanges(true);
+    setSaveError(null);
   };
 
   // Global mouse/touch move and up events
@@ -170,6 +216,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
       document.removeEventListener('touchmove', handleGlobalMove);
       document.removeEventListener('touchend', handleGlobalEnd);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDragging]);
 
   // Format target date
@@ -197,16 +244,16 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
           {/* Save Status Indicator */}
           {isSaving && (
             <span className="text-sm text-blue-600 animate-pulse flex items-center gap-1">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              <span className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></span>
               保存中...
             </span>
           )}
-          {saveSuccess && (
+          {saveSuccess && !saveError && (
             <span className="text-sm text-green-600 flex items-center gap-1 animate-fadeIn">
               ✅ 保存完了
             </span>
           )}
-          {hasUnsavedChanges && !isSaving && !saveSuccess && (
+          {hasUnsavedChanges && !isSaving && !saveSuccess && !saveError && (
             <span className="text-sm text-orange-600 flex items-center gap-1">
               ⚠️ 未保存
             </span>
@@ -226,6 +273,19 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Error Display */}
+      {saveError && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-2">
+            <span className="text-red-500 text-lg">⚠️</span>
+            <div className="flex-1">
+              <p className="text-sm text-red-700 font-medium">エラー</p>
+              <p className="text-sm text-red-600 mt-1">{saveError}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Target Date Display */}
       {formattedTargetDate && (
@@ -344,9 +404,18 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
       </div>
 
       {/* Auto-save indicator */}
-      {hasUnsavedChanges && !isDragging && !isSaving && (
+      {hasUnsavedChanges && !isDragging && !isSaving && !saveError && (
         <div className="mt-3 text-xs text-gray-500 text-center">
           ⏰ 3秒後に自動保存されます（または「保存」ボタンをクリック）
+        </div>
+      )}
+
+      {/* Debug Info (only in development) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mt-4 p-2 bg-gray-100 rounded text-xs text-gray-600">
+          <div>Item ID: {itemId}</div>
+          <div>Progress: {progress}%</div>
+          <div>Has Auth Token: {typeof window !== 'undefined' && localStorage.getItem('authToken') ? 'Yes (Admin)' : 'No (User)'}</div>
         </div>
       )}
     </div>

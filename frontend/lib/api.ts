@@ -10,10 +10,12 @@ const api = axios.create({
   },
 });
 
-// Add auth token to requests
+// Add auth token to requests - FIXED to not send empty Authorization header
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('authToken');
-  if (token) {
+  // Only add Authorization header if token exists
+  // Don't send Authorization header at all if no token (for public endpoints)
+  if (token && token.trim() !== '') {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
@@ -89,10 +91,35 @@ export const updateItemStatus = async (itemId: string, status: string) => {
   return response.data;
 };
 
-// FIXED: Update item progress - sends progress in query param as backend expects
+// Update item progress - Enhanced with better error handling
 export const updateItemProgress = async (itemId: string, progress: number) => {
-  const response = await api.patch(`/items/${itemId}/progress?progress=${progress}`);
-  return response.data;
+  try {
+    console.log(`📤 Updating progress for ${itemId} to ${progress}%`);
+    
+    // Create a specific request without auth header for this public endpoint
+    const response = await axios.patch(
+      `${API_BASE_URL}/items/${itemId}/progress`,
+      null, // No body needed as progress is in query param
+      {
+        params: { progress },
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // Don't include Authorization header for this public endpoint
+      }
+    );
+    
+    console.log('✅ Progress update response:', response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error('❌ Progress update failed:', error);
+    console.error('Error details:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+    });
+    throw error;
+  }
 };
 
 export const deleteItem = async (itemId: string) => {

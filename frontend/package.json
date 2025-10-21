@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@tailwindcss/forms": "^0.5.7",
-    "axios": "^1.6.2",
+    "axios": "^1.12.2",
     "date-fns": "^3.0.6",
     "js-cookie": "^3.0.5",
     "next": "^14.2.33",
@@ -24,7 +24,7 @@
   },
   "devDependencies": {
     "@types/js-cookie": "^3.0.6",
-    "@types/node": "^20.19.21",
+    "@types/node": "^20.19.23",
     "@types/qrcode": "^1.5.5",
     "@types/react": "^18.3.26",
     "@types/react-dom": "^18",
