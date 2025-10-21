@@ -851,3 +851,38 @@ def public_update_progress(item_id: str, progress: int):
     else:
         print(f"❌ Progress update failed in database operation")
         return {"success": False, "error": "Failed to update progress in database"}
+    
+@app.get("/test/item/{item_id}")
+def test_item_details(item_id: str):
+    """Test endpoint to check item details and permissions"""
+    item = db.get_item_by_id(item_id)
+    
+    if not item:
+        return {"error": "Item not found", "item_id": item_id}
+    
+    # Try to update progress to current value (no actual change)
+    test_progress = item.get('progress', 0)
+    
+    try:
+        # Direct Appwrite update attempt
+        result = db.databases.update_document(
+            database_id=db.database_id,
+            collection_id=db.items_collection,
+            document_id=item['id'],
+            data={'progress': test_progress}
+        )
+        
+        return {
+            "success": True,
+            "item": item,
+            "update_test": "successful",
+            "appwrite_response": str(result)
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "item": item,
+            "update_test": "failed",
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
