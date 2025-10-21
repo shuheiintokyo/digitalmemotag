@@ -1082,6 +1082,95 @@ async def test_direct_update(item_id: str, progress: int):
     except Exception as e:
         print(f"Error: {str(e)}")
         return {"error": str(e), "type": type(e).__name__}
+    
+    @app.get("/diagnostic/items")
+def diagnostic_items():
+    """Diagnostic endpoint to check Appwrite data and permissions"""
+    try:
+        # Get all items
+        items = db.get_items()
+        
+        # Test updating the first item with progress tracking
+        test_results = []
+        if items and len(items) > 0:
+            test_item = items[0]
+            test_item_id = test_item['item_id']
+            
+            # Try to update progress to current value (no actual change)
+            current_progress = test_item.get('progress', 0)
+            
+            try:
+                # Test the update
+                update_success = db.update_item_progress(test_item_id, current_progress)
+                test_results.append({
+                    "test": "update_progress",
+                    "item_id": test_item_id,
+                    "success": update_success,
+                    "current_progress": current_progress
+                })
+            except Exception as e:
+                test_results.append({
+                    "test": "update_progress",
+                    "error": str(e),
+                    "error_type": type(e).__name__
+                })
+        
+        return {
+            "total_items": len(items),
+            "items": items[:3] if items else [],  # Return first 3 items for inspection
+            "database_id": db.database_id,
+            "collection_id": db.items_collection,
+            "test_results": test_results,
+            "api_key_configured": bool(APPWRITE_API_KEY),
+            "endpoint": APPWRITE_ENDPOINT
+        }
+        
+    except Exception as e:
+        return {
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "traceback": traceback.format_exc()
+        }
+
+@app.post("/test/update-progress")
+def test_update_progress(item_id: str, progress: int):
+    """Test endpoint to update progress via POST"""
+    try:
+        # Get the item first
+        item = db.get_item_by_id(item_id)
+        if not item:
+            return {"success": False, "error": "Item not found"}
+        
+        # Log everything
+        print(f"Testing update for item: {item_id}")
+        print(f"Item found: {item['name']}")
+        print(f"Document ID: {item['id']}")
+        print(f"Current progress: {item.get('progress', 0)}")
+        print(f"New progress: {progress}")
+        
+        # Try to update
+        success = db.update_item_progress(item_id, progress)
+        
+        if success:
+            # Verify the update by fetching again
+            updated_item = db.get_item_by_id(item_id)
+            return {
+                "success": True,
+                "item_id": item_id,
+                "previous_progress": item.get('progress', 0),
+                "new_progress": progress,
+                "verified_progress": updated_item.get('progress', 0) if updated_item else None
+            }
+        else:
+            return {"success": False, "error": "Update failed"}
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "traceback": traceback.format_exc()
+        }
 
 if __name__ == "__main__":
     import uvicorn
