@@ -514,7 +514,7 @@ class Database:
             self.databases.update_document(
                 database_id=self.database_id,
                 collection_id=self.items_collection,
-                document_id=item['id'],
+                document_id=item['id'],  # This needs the Appwrite document ID, not item_id
                 data={
                     'progress': progress
                 }
@@ -804,24 +804,50 @@ if __name__ == "__main__":
     # Add this at the END of your main.py file to ensure no middleware affects it
 @app.get("/public/progress/{item_id}/{progress}")
 def public_update_progress(item_id: str, progress: int):
-    """
-    Public endpoint for progress updates - NO AUTH REQUIRED
-    Using GET method and different path to avoid any auth middleware
-    """
+    """Public endpoint for progress updates - NO AUTH REQUIRED"""
+    print(f"\n{'='*60}")
+    print(f"📥 PUBLIC PROGRESS UPDATE REQUEST")
+    print(f"   Item ID: {item_id}")
+    print(f"   Progress: {progress}")
+    print(f"{'='*60}")
+    
     if progress < 0 or progress > 100:
+        print(f"❌ Invalid progress value: {progress}")
         return {"success": False, "error": "Progress must be between 0 and 100"}
     
+    # First check if item exists
+    print(f"🔍 Checking if item exists...")
+    item = db.get_item_by_id(item_id)
+    
+    if not item:
+        print(f"❌ Item not found in database: {item_id}")
+        return {"success": False, "error": f"Item {item_id} not found"}
+    
+    print(f"✅ Item found:")
+    print(f"   - Document ID: {item.get('id')}")
+    print(f"   - Item ID: {item.get('item_id')}")
+    print(f"   - Name: {item.get('name')}")
+    print(f"   - Current Progress: {item.get('progress')}%")
+    
+    # Try to update
+    print(f"🔄 Attempting to update progress to {progress}%...")
     success = db.update_item_progress(item_id, progress)
     
     if success:
+        print(f"✅ Progress update successful!")
+        
         # Auto update status based on progress
         if progress == 100:
+            print(f"   Auto-updating status to: Completed")
             db.update_item_status(item_id, "Completed")
         elif progress >= 75:
+            print(f"   Auto-updating status to: Working")
             db.update_item_status(item_id, "Working")
         elif progress < 25:
+            print(f"   Auto-updating status to: Delayed")
             db.update_item_status(item_id, "Delayed")
         
         return {"success": True, "message": "Progress updated", "progress": progress}
-    
-    return {"success": False, "error": "Item not found"}
+    else:
+        print(f"❌ Progress update failed in database operation")
+        return {"success": False, "error": "Failed to update progress in database"}
