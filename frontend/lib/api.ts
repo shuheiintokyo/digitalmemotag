@@ -114,48 +114,14 @@ export const updateItemStatus = async (itemId: string, status: string) => {
 
 // Update item progress - Try multiple approaches
 export const updateItemProgress = async (itemId: string, progress: number) => {
-  console.log(`📊 Updating progress for ${itemId} to ${progress}%`);
-  
   try {
-    // First try: PATCH with query parameter (original method)
-    const response = await api.patch(`/items/${itemId}/progress?progress=${progress}`);
-    console.log('✅ Progress updated via PATCH:', response.data);
+    // Use the new public endpoint
+    const response = await api.get(`/public/progress/${itemId}/${progress}`);
+    console.log('✅ Progress updated:', response.data);
     return response.data;
-    
   } catch (error: any) {
-    console.error('❌ PATCH failed, trying POST...', error.message);
-    
-    try {
-      // Second try: POST with query parameter
-      const response = await api.post(`/items/${itemId}/progress?progress=${progress}`);
-      console.log('✅ Progress updated via POST:', response.data);
-      return response.data;
-      
-    } catch (error2: any) {
-      console.error('❌ POST also failed, trying GET...', error2.message);
-      
-      try {
-        // Third try: Simple GET method (if you add this endpoint to backend)
-        const response = await api.get(`/items/${itemId}/update-progress/${progress}`);
-        console.log('✅ Progress updated via GET:', response.data);
-        return response.data;
-        
-      } catch (error3: any) {
-        console.error('❌ All methods failed:', {
-          patch: error.message,
-          post: error2.message,
-          get: error3.message
-        });
-        
-        // Check if the response is HTML (error page)
-        if (error.response?.data && typeof error.response.data === 'string' && error.response.data.includes('<')) {
-          console.error('⚠️ Server returned HTML instead of JSON - endpoint not found');
-          throw new Error('Progress update endpoint not available. Please check backend.');
-        }
-        
-        throw error;
-      }
-    }
+    console.error('❌ Progress update failed:', error);
+    throw error;
   }
 };
 

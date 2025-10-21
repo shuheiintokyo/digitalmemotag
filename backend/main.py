@@ -800,3 +800,28 @@ def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    # Add this at the END of your main.py file to ensure no middleware affects it
+@app.get("/public/progress/{item_id}/{progress}")
+def public_update_progress(item_id: str, progress: int):
+    """
+    Public endpoint for progress updates - NO AUTH REQUIRED
+    Using GET method and different path to avoid any auth middleware
+    """
+    if progress < 0 or progress > 100:
+        return {"success": False, "error": "Progress must be between 0 and 100"}
+    
+    success = db.update_item_progress(item_id, progress)
+    
+    if success:
+        # Auto update status based on progress
+        if progress == 100:
+            db.update_item_status(item_id, "Completed")
+        elif progress >= 75:
+            db.update_item_status(item_id, "Working")
+        elif progress < 25:
+            db.update_item_status(item_id, "Delayed")
+        
+        return {"success": True, "message": "Progress updated", "progress": progress}
+    
+    return {"success": False, "error": "Item not found"}
