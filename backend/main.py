@@ -802,87 +802,119 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
     # Add this at the END of your main.py file to ensure no middleware affects it
+# Add this to your backend/main.py - REPLACE the existing public_update_progress function
+
 @app.get("/public/progress/{item_id}/{progress}")
 def public_update_progress(item_id: str, progress: int):
-    """Public endpoint for progress updates - NO AUTH REQUIRED"""
+    """
+    Public endpoint for progress updates - NO AUTH REQUIRED
+    Fixed version with proper error handling
+    """
     print(f"\n{'='*60}")
     print(f"📥 PUBLIC PROGRESS UPDATE REQUEST")
     print(f"   Item ID: {item_id}")
     print(f"   Progress: {progress}")
     print(f"{'='*60}")
     
+    # Validate progress value
     if progress < 0 or progress > 100:
         print(f"❌ Invalid progress value: {progress}")
-        return {"success": False, "error": "Progress must be between 0 and 100"}
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "Progress must be between 0 and 100"}
+        )
     
-    # First check if item exists
-    print(f"🔍 Checking if item exists...")
+    # Check if item exists first
+    print(f"🔍 Looking for item: {item_id}")
     item = db.get_item_by_id(item_id)
     
     if not item:
-        print(f"❌ Item not found in database: {item_id}")
-        return {"success": False, "error": f"Item {item_id} not found"}
+        print(f"❌ Item not found: {item_id}")
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "error": f"Item {item_id} not found in database"}
+        )
     
     print(f"✅ Item found:")
-    print(f"   - Document ID: {item.get('id')}")
-    print(f"   - Item ID: {item.get('item_id')}")
     print(f"   - Name: {item.get('name')}")
-    print(f"   - Current Progress: {item.get('progress')}%")
+    print(f"   - Current Progress: {item.get('progress', 0)}%")
+    print(f"   - Appwrite Doc ID: {item.get('id')}")
     
-    # Try to update
+    # Try to update the progress
     print(f"🔄 Attempting to update progress to {progress}%...")
-    success = db.update_item_progress(item_id, progress)
-    
-    if success:
-        print(f"✅ Progress update successful!")
-        
-        # Auto update status based on progress
-        if progress == 100:
-            print(f"   Auto-updating status to: Completed")
-            db.update_item_status(item_id, "Completed")
-        elif progress >= 75:
-            print(f"   Auto-updating status to: Working")
-            db.update_item_status(item_id, "Working")
-        elif progress < 25:
-            print(f"   Auto-updating status to: Delayed")
-            db.update_item_status(item_id, "Delayed")
-        
-        return {"success": True, "message": "Progress updated", "progress": progress}
-    else:
-        print(f"❌ Progress update failed in database operation")
-        return {"success": False, "error": "Failed to update progress in database"}
-    
-@app.get("/test/item/{item_id}")
-def test_item_details(item_id: str):
-    """Test endpoint to check item details and permissions"""
-    item = db.get_item_by_id(item_id)
-    
-    if not item:
-        return {"error": "Item not found", "item_id": item_id}
-    
-    # Try to update progress to current value (no actual change)
-    test_progress = item.get('progress', 0)
-    
     try:
-        # Direct Appwrite update attempt
-        result = db.databases.update_document(
-            database_id=db.database_id,
-            collection_id=db.items_collection,
-            document_id=item['id'],
-            data={'progress': test_progress}
-        )
+        success = db.update_item_progress(item_id, progress)
         
-        return {
-            "success": True,
-            "item": item,
-            "update_test": "successful",
-            "appwrite_response": str(result)
-        }
+        if success:
+            print(f"✅ Database update successful!")
+            
+            # Auto update status based on progress
+            if progress == 100:
+                print(f"   Auto-updating status to: Completed")
+                db.update_item_status(item_id, "Completed")
+            elif progress >= 75:
+                print(f"   Auto-updating status to: Working")
+                db.update_item_status(item_id, "Working")
+            elif progress < 25:
+                print(f"   Auto-updating status to: Delayed")
+                db.update_item_status(item_id, "Delayed")
+            
+            print(f"{'='*60}\n")
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True, 
+                    "message": "Progress updated successfully", 
+                    "progress": progress,
+                    "item_id": item_id
+                }
+            )
+        else:
+            print(f"❌ Database update returned False")
+            print(f"{'='*60}\n")
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False, 
+                    "error": "Failed to update progress in database"
+                }
+            )
+            
     except Exception as e:
+        print(f"❌ Exception during update: {str(e)}")
+        print(f"   Exception type: {type(e).__name__}")
+        import traceback
+        traceback.print_exc()
+        print(f"{'='*60}\n")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False, 
+                "error": f"Server error: {str(e)}"
+            }
+        )
+
+# Also add a debug endpoint to check what's in the database
+@app.get("/debug/item/{item_id}")
+def debug_item(item_id: str):
+    """Debug endpoint to check item details"""
+    print(f"\n🔍 DEBUG: Looking for item {item_id}")
+    
+    item = db.get_item_by_id(item_id)
+    if not item:
+        all_items = db.get_items()
+        item_ids = [i.get('item_id') for i in all_items]
         return {
-            "success": False,
-            "item": item,
-            "update_test": "failed",
-            "error": str(e),
-            "error_type": type(e).__name__
+            "found": False,
+            "item_id": item_id,
+            "available_items": item_ids,
+            "total_items": len(item_ids)
         }
+    
+    return {
+        "found": True,
+        "item": item,
+        "can_update": True if item.get('id') else False,
+        "appwrite_doc_id": item.get('id'),
+        "current_progress": item.get('progress', 0)
+    }
