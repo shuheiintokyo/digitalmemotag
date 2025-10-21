@@ -3,6 +3,8 @@ import axios from 'axios';
 // Update the API base URL to your deployed backend
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://digitalmemotag-backend.vercel.app';
 
+console.log('🌐 API Base URL:', API_BASE_URL);
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -18,8 +20,39 @@ api.interceptors.request.use((config) => {
   if (token && token.trim() !== '') {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  
+  // Debug logging
+  console.log('📤 Request:', {
+    url: config.url,
+    method: config.method,
+    headers: config.headers,
+    params: config.params,
+    data: config.data
+  });
+  
   return config;
 });
+
+// Add response interceptor for debugging
+api.interceptors.response.use(
+  (response) => {
+    console.log('✅ Response:', {
+      url: response.config.url,
+      status: response.status,
+      data: response.data
+    });
+    return response;
+  },
+  (error) => {
+    console.error('❌ Error Response:', {
+      url: error.config?.url,
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    });
+    return Promise.reject(error);
+  }
+);
 
 // Updated interfaces
 export interface Item {
@@ -91,34 +124,58 @@ export const updateItemStatus = async (itemId: string, status: string) => {
   return response.data;
 };
 
-// Update item progress - Enhanced with better error handling
+// CRITICAL FIX: Update item progress - Multiple approaches to ensure it works
 export const updateItemProgress = async (itemId: string, progress: number) => {
+  console.log('🎯 updateItemProgress called:', { itemId, progress });
+  
   try {
-    console.log(`📤 Updating progress for ${itemId} to ${progress}%`);
+    // Approach 1: Try with query parameter (as backend expects)
+    console.log(`📊 Attempting to update progress for ${itemId} to ${progress}%`);
+    console.log(`📍 Full URL: ${API_BASE_URL}/items/${itemId}/progress?progress=${progress}`);
     
-    // Create a specific request without auth header for this public endpoint
-    const response = await axios.patch(
-      `${API_BASE_URL}/items/${itemId}/progress`,
-      null, // No body needed as progress is in query param
-      {
+    const response = await api.patch(`/items/${itemId}/progress?progress=${progress}`);
+    
+    console.log('✅ Progress update successful:', response.data);
+    return response.data;
+    
+  } catch (error: any) {
+    console.error('❌ Progress update failed with first approach:', error);
+    
+    // Approach 2: Try without auth header at all (completely public)
+    try {
+      console.log('🔄 Trying alternative approach without any auth...');
+      
+      const response = await axios({
+        method: 'PATCH',
+        url: `${API_BASE_URL}/items/${itemId}/progress`,
         params: { progress },
         headers: {
           'Content-Type': 'application/json',
-        },
-        // Don't include Authorization header for this public endpoint
+        }
+      });
+      
+      console.log('✅ Alternative approach successful:', response.data);
+      return response.data;
+      
+    } catch (error2: any) {
+      console.error('❌ Alternative approach also failed:', error2);
+      
+      // Log detailed error information
+      if (error2.response) {
+        console.error('Server responded with error:', {
+          status: error2.response.status,
+          statusText: error2.response.statusText,
+          data: error2.response.data,
+          headers: error2.response.headers
+        });
+      } else if (error2.request) {
+        console.error('No response received from server:', error2.request);
+      } else {
+        console.error('Error setting up request:', error2.message);
       }
-    );
-    
-    console.log('✅ Progress update response:', response.data);
-    return response.data;
-  } catch (error: any) {
-    console.error('❌ Progress update failed:', error);
-    console.error('Error details:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
-    throw error;
+      
+      throw error2;
+    }
   }
 };
 
@@ -135,6 +192,7 @@ export const getMessages = async (itemId?: string): Promise<Message[]> => {
 };
 
 export const createMessage = async (message: MessageCreate) => {
+  console.log('📨 Creating message:', message);
   const response = await api.post('/messages', message);
   return response.data;
 };

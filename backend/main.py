@@ -645,8 +645,11 @@ def update_item_status(item_id: str, status_update: StatusUpdate, _: str = Depen
     else:
         raise HTTPException(status_code=400, detail="Failed to update status")
 
+# Just showing the updated progress endpoint part
+# Add this to replace the existing update_item_progress endpoint in your main.py
+
 @app.patch("/items/{item_id}/progress")
-def update_item_progress(item_id: str, progress: int = Query(..., ge=0, le=100)):
+async def update_item_progress(item_id: str, progress: int = Query(..., ge=0, le=100)):
     """Update item progress (0-100%) - Available to all users"""
     print("="*60)
     print(f"📥 PROGRESS UPDATE REQUEST")
@@ -655,12 +658,38 @@ def update_item_progress(item_id: str, progress: int = Query(..., ge=0, le=100))
     print(f"   Timestamp: {datetime.datetime.now().isoformat()}")
     print("="*60)
     
+    # Add CORS headers explicitly for this endpoint
+    headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "PATCH, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+    }
+    
     if progress < 0 or progress > 100:
         print(f"❌ Validation failed: Progress {progress} out of range")
-        raise HTTPException(status_code=400, detail="Progress must be between 0 and 100")
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Progress must be between 0 and 100"},
+            headers=headers
+        )
     
     try:
-        print(f"🔄 Calling db.update_item_progress...")
+        print(f"🔄 Attempting to update progress in database...")
+        
+        # First, check if item exists
+        item = db.get_item_by_id(item_id)
+        if not item:
+            print(f"❌ Item not found: {item_id}")
+            return JSONResponse(
+                status_code=404,
+                content={"detail": f"Item {item_id} not found"},
+                headers=headers
+            )
+        
+        print(f"✅ Item found: {item['name']}")
+        print(f"   Current progress: {item.get('progress', 0)}%")
+        print(f"   New progress: {progress}%")
+        
         success = db.update_item_progress(item_id, progress)
         
         if success:
@@ -668,26 +697,53 @@ def update_item_progress(item_id: str, progress: int = Query(..., ge=0, le=100))
             
             # Auto update status based on progress
             if progress == 100:
-                print(f"   Setting status: Completed")
+                print(f"   Auto-setting status: Completed")
                 db.update_item_status(item_id, "Completed")
             elif progress >= 75:
-                print(f"   Setting status: Working")
+                print(f"   Auto-setting status: Working")
                 db.update_item_status(item_id, "Working")
             elif progress < 25:
-                print(f"   Setting status: Delayed")
+                print(f"   Auto-setting status: Delayed")
                 db.update_item_status(item_id, "Delayed")
             
             print("="*60)
-            return {"success": True, "message": "Progress updated"}
+            return JSONResponse(
+                status_code=200,
+                content={"success": True, "message": "Progress updated", "progress": progress},
+                headers=headers
+            )
         else:
             print(f"❌ Database update failed")
             print("="*60)
-            raise HTTPException(status_code=400, detail="Failed to update progress")
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Failed to update progress"},
+                headers=headers
+            )
             
     except Exception as e:
         print(f"❌ Exception in update_item_progress: {str(e)}")
+        import traceback
+        traceback.print_exc()
         print("="*60)
-        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Server error: {str(e)}"},
+            headers=headers
+        )
+
+# Also add OPTIONS handler for CORS preflight
+@app.options("/items/{item_id}/progress")
+async def options_item_progress(item_id: str):
+    """Handle OPTIONS request for CORS preflight"""
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "PATCH, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        }
+    )
 
 @app.delete("/items/{item_id}")
 def delete_item(item_id: str, _: str = Depends(verify_admin_token)):
