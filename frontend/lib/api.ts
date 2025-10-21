@@ -112,15 +112,36 @@ export const updateItemStatus = async (itemId: string, status: string) => {
   return response.data;
 };
 
-// Update item progress - Try multiple approaches
+// Update item progress - Using the working public endpoint
 export const updateItemProgress = async (itemId: string, progress: number) => {
+  console.log(`📊 Updating progress for ${itemId} to ${progress}%`);
+  
   try {
-    // Use the new public endpoint
+    // Use the public endpoint that works without authentication
     const response = await api.get(`/public/progress/${itemId}/${progress}`);
-    console.log('✅ Progress updated:', response.data);
-    return response.data;
+    console.log('✅ Progress updated successfully:', response.data);
+    
+    // Check if the update was successful
+    if (response.data.success) {
+      return response.data;
+    } else {
+      // Handle error response from API
+      console.error('❌ Server reported failure:', response.data.error);
+      throw new Error(response.data.error || 'Failed to update progress');
+    }
+    
   } catch (error: any) {
     console.error('❌ Progress update failed:', error);
+    
+    // Check for specific error types
+    if (error.response?.status === 404) {
+      throw new Error('Item not found. Please refresh the page.');
+    } else if (error.response?.status === 400) {
+      throw new Error('Invalid progress value. Must be between 0 and 100.');
+    } else if (error.response?.data?.detail) {
+      throw new Error(error.response.data.detail);
+    }
+    
     throw error;
   }
 };
