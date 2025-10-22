@@ -751,6 +751,17 @@ def delete_message(message_id: str, _: str = Depends(verify_admin_token)):
     except Exception as e:
         print(f"❌ Error deleting message: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to delete message: {str(e)}")
+    
+@app.get("/debug/env")
+def debug_env():
+        """Check environment variables"""
+        return {
+            "APPWRITE_DATABASE_ID": os.getenv("APPWRITE_DATABASE_ID"),
+            "APPWRITE_PROJECT_ID": os.getenv("APPWRITE_PROJECT_ID"),
+            "APPWRITE_API_KEY_EXISTS": bool(os.getenv("APPWRITE_API_KEY")),
+            "DATABASE_ID_BEING_USED": DATABASE_ID,
+            "ALL_ENV_VARS": list(os.environ.keys())
+        }
 
 if __name__ == "__main__":
     import uvicorn
