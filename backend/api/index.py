@@ -16,11 +16,9 @@ from appwrite.services.databases import Databases
 from appwrite.query import Query as AppwriteQuery
 from appwrite.id import ID
 from appwrite.exception import AppwriteException
-import traceback
 
 load_dotenv()
 
-# Version constant
 VERSION = "2.0.1"
 
 class UnicodeJSONResponse(Response):
@@ -45,20 +43,20 @@ app = FastAPI(
 origins = [
     "http://localhost:3000",
     "http://localhost:8000",
-    "https://digitalmemotag.vercel.app",           # Original Vercel frontend
-    "https://memotag.digital",                     # ✅ Custom domain WITHOUT www
-    "https://www.memotag.digital",                 # ✅ Custom domain WITH www
-    "https://digitalmemotag-backend.vercel.app",   # Backend itself (for testing)
+    "https://digitalmemotag.vercel.app",
+    "https://memotag.digital",
+    "https://www.memotag.digital",
+    "https://digitalmemotag-backend.vercel.app",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https://.*\.vercel\.app",  # Allow all Vercel subdomains
-    allow_origins=origins,                           # Explicit allowed origins
-    allow_credentials=True,                          # Allow cookies/auth
-    allow_methods=["*"],                             # Allow all HTTP methods (GET, POST, PATCH, DELETE, etc.)
-    allow_headers=["*"],                             # Allow all request headers
-    expose_headers=["*"],                            # Expose all response headers
+    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Security
@@ -100,11 +98,10 @@ print("="*60)
 print(f"✅ Appwrite Endpoint: {APPWRITE_ENDPOINT}")
 print(f"✅ Project ID: {APPWRITE_PROJECT_ID}")
 print(f"✅ Database ID: {DATABASE_ID}")
+print(f"✅ Items Collection: {ITEMS_COLLECTION}")
 print(f"✅ Resend: {'Configured' if RESEND_API_KEY else 'Not configured'}")
 if ADMIN_EMAILS:
     print(f"✅ Admin Emails: {len(ADMIN_EMAILS)} configured")
-    for email in ADMIN_EMAILS:
-        print(f"   📧 {email}")
 else:
     print("⚠️ Admin Email: Not configured")
 print("="*60)
@@ -115,7 +112,7 @@ class ItemCreate(BaseModel):
     name: str
     location: str
     status: str = "Working"
-    user_email: Optional[str] = None  # Can contain comma-separated emails
+    user_email: Optional[str] = None
     total_pieces: Optional[int] = None
     target_date: Optional[str] = None
     progress: Optional[int] = 0
@@ -161,7 +158,7 @@ class EmailSubscription(BaseModel):
     email: EmailStr
     notify_all: bool = False
 
-# Email notification function with Resend
+# Email notification function
 def send_email_notification(to_email: str, item_name: str, item_id: str, message: str, user_name: str):
     """Send email notification using Resend"""
     
@@ -256,15 +253,14 @@ def send_email_notification(to_email: str, item_name: str, item_id: str, message
         }
         
         email = resend.Emails.send(params)
-        
-        print(f"✅ Email sent to {to_email} - ID: {email.get('id', 'N/A')}")
+        print(f"✅ Email sent to {to_email}")
         return True
         
     except Exception as e:
         print(f"❌ Error sending email to {to_email}: {str(e)}")
         return False
 
-# Database class with Appwrite
+# Database class
 class Database:
     def __init__(self):
         self.databases = databases
@@ -377,7 +373,7 @@ class Database:
     
     def add_item(self, item_id, name, location, status="Working", user_email=None, 
                  total_pieces=None, target_date=None, progress=0):
-        """Add new item with progress tracking"""
+        """Add new item"""
         try:
             existing = self.get_item_by_id(item_id)
             if existing:
@@ -415,7 +411,7 @@ class Database:
             return False, str(e)
     
     def add_message(self, item_id, message, user_name, msg_type="general", send_notification=False):
-        """Add new message and optionally send notifications to multiple recipients"""
+        """Add new message"""
         try:
             user_name = user_name.strip() if user_name and user_name.strip() else "匿名"
             message = message.strip() if message else ""
@@ -445,33 +441,16 @@ class Database:
             if send_notification:
                 item_name = item['name']
                 user_email_string = item.get('user_email', '')
-                
-                # Parse multiple user emails (comma-separated)
                 user_emails = [email.strip() for email in user_email_string.split(',') if email.strip()] if user_email_string else []
                 
-                # Determine recipient based on who posted
                 if user_name in ['管理者', 'admin', 'Admin', 'Administrator']:
-                    # Admin posted - send to ALL user emails
                     if user_emails:
-                        print(f"📧 Sending notification from admin to {len(user_emails)} user(s)")
-                        success_count = 0
                         for user_email in user_emails:
-                            if send_email_notification(user_email, item_name, item_id, message, user_name):
-                                success_count += 1
-                        print(f"✅ Sent to {success_count}/{len(user_emails)} user(s)")
-                    else:
-                        print("⚠️ User email not configured for this item")
+                            send_email_notification(user_email, item_name, item_id, message, user_name)
                 else:
-                    # User posted - send to ALL admins
                     if ADMIN_EMAILS:
-                        print(f"📧 Sending notification from user to {len(ADMIN_EMAILS)} admin(s)")
-                        success_count = 0
                         for admin_email in ADMIN_EMAILS:
-                            if send_email_notification(admin_email, item_name, item_id, message, user_name):
-                                success_count += 1
-                        print(f"✅ Sent to {success_count}/{len(ADMIN_EMAILS)} admin(s)")
-                    else:
-                        print("⚠️ No admin emails configured")
+                            send_email_notification(admin_email, item_name, item_id, message, user_name)
             
             return True, "Message posted successfully"
             
@@ -486,7 +465,6 @@ class Database:
         """Update item status"""
         try:
             item = self.get_item_by_id(item_id)
-            
             if not item:
                 return False
             
@@ -494,9 +472,7 @@ class Database:
                 database_id=self.database_id,
                 collection_id=self.items_collection,
                 document_id=item['id'],
-                data={
-                    'status': status
-                }
+                data={'status': status}
             )
             
             print(f"✅ Status updated: {item_id} -> {status}")
@@ -510,26 +486,18 @@ class Database:
         """Update item progress"""
         try:
             item = self.get_item_by_id(item_id)
-            
             if not item:
                 print(f"❌ Item not found: {item_id}")
                 return False
-            
-            print(f"📝 Updating Appwrite document ID: {item['id']}")
-            print(f"   Item: {item_id} - {item['name']}")
-            print(f"   From progress: {item.get('progress', 0)}%")
-            print(f"   To progress: {progress}%")
             
             self.databases.update_document(
                 database_id=self.database_id,
                 collection_id=self.items_collection,
                 document_id=item['id'],
-                data={
-                    'progress': progress
-                }
+                data={'progress': progress}
             )
             
-            print(f"✅ Progress updated in Appwrite: {item_id} -> {progress}%")
+            print(f"✅ Progress updated: {item_id} -> {progress}%")
             return True
             
         except AppwriteException as e:
@@ -537,14 +505,12 @@ class Database:
             return False
         except Exception as e:
             print(f"❌ Error updating progress: {e}")
-            traceback.print_exc()
             return False
     
     def delete_item(self, item_id):
         """Delete item and all related data"""
         try:
             item = self.get_item_by_id(item_id)
-            
             if not item:
                 return False
             
@@ -562,7 +528,7 @@ class Database:
                 document_id=item['id']
             )
             
-            print(f"✅ Item deleted: {item_id} (including {len(messages)} messages)")
+            print(f"✅ Item deleted: {item_id}")
             return True
             
         except Exception as e:
@@ -601,7 +567,8 @@ def format_timestamp_jst(timestamp_str):
     except Exception as e:
         return "時刻不明"
 
-# API Routes
+# ===== API ROUTES =====
+
 @app.get("/")
 def read_root():
     return {
@@ -611,6 +578,54 @@ def read_root():
         "email": "Resend" if RESEND_API_KEY else "Not configured"
     }
 
+@app.get("/health")
+def health_check():
+    return {
+        "status": "healthy",
+        "timestamp": datetime.datetime.now().isoformat(),
+        "database": "Appwrite",
+        "email": "Resend configured" if RESEND_API_KEY else "Resend not configured"
+    }
+
+@app.get("/debug/appwrite")
+def debug_appwrite():
+    """Debug endpoint to check Appwrite connection"""
+    try:
+        config_info = {
+            "endpoint": APPWRITE_ENDPOINT,
+            "project_id": APPWRITE_PROJECT_ID,
+            "database_id": DATABASE_ID,
+            "items_collection": ITEMS_COLLECTION,
+            "api_key_exists": bool(APPWRITE_API_KEY),
+            "api_key_length": len(APPWRITE_API_KEY) if APPWRITE_API_KEY else 0
+        }
+        
+        result = databases.list_documents(
+            database_id=DATABASE_ID,
+            collection_id=ITEMS_COLLECTION,
+            queries=[AppwriteQuery.limit(2)]
+        )
+        
+        return {
+            "success": True,
+            "config": config_info,
+            "total_documents": result.get('total', 0),
+            "documents_preview": result.get('documents', [])[:2]
+        }
+    except AppwriteException as e:
+        return {
+            "success": False,
+            "error": e.message,
+            "code": e.code,
+            "config": config_info
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
+
 @app.post("/login")
 def login(request: LoginRequest):
     if request.password == ADMIN_PASSWORD:
@@ -619,38 +634,10 @@ def login(request: LoginRequest):
         raise HTTPException(status_code=401, detail="Invalid password")
 
 @app.get("/items")
-def get_items(update_progress: Optional[str] = None):
-    # Check if this is a progress update request
-    if update_progress:
-        try:
-            parts = update_progress.split(',')
-            if len(parts) == 2:
-                item_id, progress_str = parts
-                progress = int(progress_str)
-                
-                if 0 <= progress <= 100:
-                    success = db.update_item_progress(item_id, progress)
-                    if success:
-                        # Auto update status
-                        if progress == 100:
-                            db.update_item_status(item_id, "Completed")
-                        elif progress >= 75:
-                            db.update_item_status(item_id, "Working")
-                        elif progress < 25:
-                            db.update_item_status(item_id, "Delayed")
-                        
-                        # Return JSON directly, not JSONResponse
-                        return {"success": True, "message": "Progress updated", "progress": progress}
-                    else:
-                        return {"success": False, "error": "Failed to update progress"}
-                else:
-                    return {"success": False, "error": "Progress must be 0-100"}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-    
-    # Normal items listing
+def get_items():
     items = db.get_items()
     return JSONResponse(content=items, media_type="application/json; charset=utf-8")
+
 @app.get("/items/{item_id}")
 def get_item(item_id: str):
     item = db.get_item_by_id(item_id)
@@ -661,19 +648,21 @@ def get_item(item_id: str):
 @app.post("/items")
 def create_item(item: ItemCreate, _: str = Depends(verify_admin_token)):
     success, message = db.add_item(
-        item.item_id, 
-        item.name, 
-        item.location, 
-        item.status,
-        item.user_email,
-        item.total_pieces,
-        item.target_date,
-        item.progress
+        item.item_id, item.name, item.location, item.status,
+        item.user_email, item.total_pieces, item.target_date, item.progress
     )
     if success:
         return {"success": True, "message": message}
     else:
         raise HTTPException(status_code=400, detail=message)
+
+@app.delete("/items/{item_id}")
+def delete_item(item_id: str, _: str = Depends(verify_admin_token)):
+    success = db.delete_item(item_id)
+    if success:
+        return {"success": True, "message": "Item deleted"}
+    else:
+        raise HTTPException(status_code=400, detail="Failed to delete item")
 
 @app.patch("/items/{item_id}/status")
 def update_item_status(item_id: str, status_update: StatusUpdate, _: str = Depends(verify_admin_token)):
@@ -685,214 +674,51 @@ def update_item_status(item_id: str, status_update: StatusUpdate, _: str = Depen
 
 @app.patch("/items/{item_id}/progress")
 def update_item_progress(item_id: str, progress: int = Query(..., ge=0, le=100)):
-    """Update item progress (0-100%) - Available to all users"""
-    print("="*60)
-    print(f"📥 PROGRESS UPDATE REQUEST (PATCH)")
-    print(f"   Item ID: {item_id}")
-    print(f"   Progress: {progress}")
-    print(f"   Timestamp: {datetime.datetime.now().isoformat()}")
-    print("="*60)
+    """Update item progress (0-100%)"""
+    success = db.update_item_progress(item_id, progress)
     
-    if progress < 0 or progress > 100:
-        print(f"❌ Validation failed: Progress {progress} out of range")
-        raise HTTPException(status_code=400, detail="Progress must be between 0 and 100")
-    
-    try:
-        print(f"🔄 Calling db.update_item_progress...")
-        success = db.update_item_progress(item_id, progress)
-        
-        if success:
-            print(f"✅ Database update successful")
-            
-            # Auto update status based on progress
-            if progress == 100:
-                print(f"   Setting status: Completed")
-                db.update_item_status(item_id, "Completed")
-            elif progress >= 75:
-                print(f"   Setting status: Working")
-                db.update_item_status(item_id, "Working")
-            elif progress < 25:
-                print(f"   Setting status: Delayed")
-                db.update_item_status(item_id, "Delayed")
-            
-            print("="*60)
-            return {"success": True, "message": "Progress updated"}  # ✅ FIXED MESSAGE
-        else:
-            print(f"❌ Database update failed")
-            print("="*60)
-            raise HTTPException(status_code=404, detail="Item not found")
-            
-    except Exception as e:
-        print(f"❌ Exception in update_item_progress: {str(e)}")
-        print("="*60)
-        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
-
-@app.get("/messages", response_model=List[Message])
-def get_messages(item_id: Optional[str] = None):
-    messages = db.get_messages(item_id)
-    for msg in messages:
-        msg['formatted_time'] = format_timestamp_jst(msg.get('created_at', ''))
-    return messages
-
-@app.post("/messages")
-def create_message(message: MessageCreate):
-    success, error_msg = db.add_message(
-        message.item_id, 
-        message.message, 
-        message.user_name, 
-        message.msg_type,
-        message.send_notification
-    )
     if success:
-        return {"success": True, "message": "Message posted successfully"}
+        # Auto update status
+        if progress == 100:
+            db.update_item_status(item_id, "Completed")
+        elif progress >= 75:
+            db.update_item_status(item_id, "Working")
+        elif progress < 25:
+            db.update_item_status(item_id, "Delayed")
+        
+        return {"success": True, "message": "Progress updated"}
     else:
-        raise HTTPException(status_code=400, detail=error_msg)
-    
-@app.delete("/messages/{message_id}")    
-def delete_message(message_id: str, _: str = Depends(verify_admin_token)):
-    """Delete a specific message"""
-    try:
-        db.databases.delete_document(
-            database_id=DATABASE_ID,
-            collection_id=MESSAGES_COLLECTION,
-            document_id=message_id
-        )
-        return {"success": True, "message": "Message deleted"}
-    except Exception as e:
-        print(f"❌ Error deleting message: {e}")
-        raise HTTPException(status_code=400, detail=f"Failed to delete message: {str(e)}")
+        raise HTTPException(status_code=404, detail="Item not found")
 
-@app.get("/health")
-def health_check():
-    return {
-        "status": "healthy",
-        "timestamp": datetime.datetime.now().isoformat(),
-        "database": "Appwrite",
-        "email": "Resend configured" if RESEND_API_KEY else "Resend not configured"
-    }
-
-# PUBLIC PROGRESS ENDPOINT - NO AUTH REQUIRED
 @app.get("/public/progress/{item_id}/{progress}")
 def public_update_progress(item_id: str, progress: int):
-    """
-    Public endpoint for progress updates - NO AUTH REQUIRED
-    This endpoint allows anyone to update progress without authentication
-    """
-    print(f"\n{'='*60}")
-    print(f"📥 PUBLIC PROGRESS UPDATE REQUEST")
-    print(f"   Item ID: {item_id}")
-    print(f"   Progress: {progress}")
-    print(f"{'='*60}")
-    
-    # Validate progress value
+    """Public endpoint for progress updates - NO AUTH REQUIRED"""
     if progress < 0 or progress > 100:
-        print(f"❌ Invalid progress value: {progress}")
         return JSONResponse(
             status_code=400,
             content={"success": False, "error": "Progress must be between 0 and 100"}
         )
     
-    # Check if item exists first
-    print(f"🔍 Looking for item: {item_id}")
-    item = db.get_item_by_id(item_id)
+    success = db.update_item_progress(item_id, progress)
     
-    if not item:
-        print(f"❌ Item not found: {item_id}")
+    if success:
+        # Auto update status
+        if progress == 100:
+            db.update_item_status(item_id, "Completed")
+        elif progress >= 75:
+            db.update_item_status(item_id, "Working")
+        elif progress < 25:
+            db.update_item_status(item_id, "Delayed")
+        
+        return JSONResponse(
+            status_code=200,
+            content={"success": True, "message": "Progress updated", "progress": progress}
+        )
+    else:
         return JSONResponse(
             status_code=404,
-            content={"success": False, "error": f"Item {item_id} not found in database"}
+            content={"success": False, "error": "Item not found"}
         )
-    
-    print(f"✅ Item found:")
-    print(f"   - Name: {item.get('name')}")
-    print(f"   - Current Progress: {item.get('progress', 0)}%")
-    print(f"   - Appwrite Doc ID: {item.get('id')}")
-    
-    # Try to update the progress
-    print(f"🔄 Attempting to update progress to {progress}%...")
-    try:
-        success = db.update_item_progress(item_id, progress)
-        
-        if success:
-            print(f"✅ Database update successful!")
-            
-            # Auto update status based on progress
-            if progress == 100:
-                print(f"   Auto-updating status to: Completed")
-                db.update_item_status(item_id, "Completed")
-            elif progress >= 75:
-                print(f"   Auto-updating status to: Working")
-                db.update_item_status(item_id, "Working")
-            elif progress < 25:
-                print(f"   Auto-updating status to: Delayed")
-                db.update_item_status(item_id, "Delayed")
-            
-            print(f"{'='*60}\n")
-            return JSONResponse(
-                status_code=200,
-                content={
-                    "success": True, 
-                    "message": "Progress updated successfully", 
-                    "progress": progress,
-                    "item_id": item_id
-                }
-            )
-        else:
-            print(f"❌ Database update returned False")
-            print(f"{'='*60}\n")
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "success": False, 
-                    "error": "Failed to update progress in database"
-                }
-            )
-            
-    except Exception as e:
-        print(f"❌ Exception during update: {str(e)}")
-        print(f"   Exception type: {type(e).__name__}")
-        traceback.print_exc()
-        print(f"{'='*60}\n")
-        return JSONResponse(
-            status_code=500,
-            content={
-                "success": False, 
-                "error": f"Server error: {str(e)}"
-            }
-        )
-
-# Debug endpoint to check item details
-@app.get("/debug/item/{item_id}")
-def debug_item(item_id: str):
-    """Debug endpoint to check item details"""
-    print(f"\n🔍 DEBUG: Looking for item {item_id}")
-    
-    item = db.get_item_by_id(item_id)
-    if not item:
-        all_items = db.get_items()
-        item_ids = [i.get('item_id') for i in all_items]
-        return {
-            "found": False,
-            "item_id": item_id,
-            "available_items": item_ids,
-            "total_items": len(item_ids)
-        }
-    
-    return {
-        "found": True,
-        "item": item,
-        "can_update": True if item.get('id') else False,
-        "appwrite_doc_id": item.get('id'),
-        "current_progress": item.get('progress', 0)
-    }
-
-@app.delete("/items/{item_id}")
-def delete_item(item_id: str, _: str = Depends(verify_admin_token)):
-    success = db.delete_item(item_id)
-    if success:
-        return {"success": True, "message": "Item deleted"}
-    else:
-        raise HTTPException(status_code=400, detail="Failed to delete item")
 
 @app.get("/messages", response_model=List[Message])
 def get_messages(item_id: Optional[str] = None):
@@ -904,17 +730,14 @@ def get_messages(item_id: Optional[str] = None):
 @app.post("/messages")
 def create_message(message: MessageCreate):
     success, error_msg = db.add_message(
-        message.item_id, 
-        message.message, 
-        message.user_name, 
-        message.msg_type,
-        message.send_notification
+        message.item_id, message.message, message.user_name, 
+        message.msg_type, message.send_notification
     )
     if success:
         return {"success": True, "message": "Message posted successfully"}
     else:
         raise HTTPException(status_code=400, detail=error_msg)
-    
+
 @app.delete("/messages/{message_id}")    
 def delete_message(message_id: str, _: str = Depends(verify_admin_token)):
     """Delete a specific message"""
@@ -928,251 +751,7 @@ def delete_message(message_id: str, _: str = Depends(verify_admin_token)):
     except Exception as e:
         print(f"❌ Error deleting message: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to delete message: {str(e)}")
-
-@app.get("/health")
-def health_check():
-    return {
-        "status": "healthy",
-        "timestamp": datetime.datetime.now().isoformat(),
-        "database": "Appwrite",
-        "email": "Resend configured" if RESEND_API_KEY else "Resend not configured"
-    }
-
-# PUBLIC PROGRESS ENDPOINT - NO AUTH REQUIRED
-@app.get("/public/progress/{item_id}/{progress}")
-async def public_update_progress(item_id: str, progress: int):
-    """
-    Public endpoint for progress updates - NO AUTH REQUIRED
-    This endpoint allows anyone to update progress without authentication
-    """
-    print(f"\n{'='*60}")
-    print(f"📥 PUBLIC PROGRESS UPDATE REQUEST")
-    print(f"   Item ID: {item_id}")
-    print(f"   Progress: {progress}")
-    print(f"{'='*60}")
-    
-    # Validate progress value
-    if progress < 0 or progress > 100:
-        print(f"❌ Invalid progress value: {progress}")
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "error": "Progress must be between 0 and 100"}
-        )
-    
-    # Check if item exists first
-    print(f"🔍 Looking for item: {item_id}")
-    item = db.get_item_by_id(item_id)
-    
-    if not item:
-        print(f"❌ Item not found: {item_id}")
-        return JSONResponse(
-            status_code=404,
-            content={"success": False, "error": f"Item {item_id} not found in database"}
-        )
-    
-    print(f"✅ Item found:")
-    print(f"   - Name: {item.get('name')}")
-    print(f"   - Current Progress: {item.get('progress', 0)}%")
-    print(f"   - Appwrite Doc ID: {item.get('id')}")
-    
-    # Try to update the progress
-    print(f"🔄 Attempting to update progress to {progress}%...")
-    try:
-        success = db.update_item_progress(item_id, progress)
-        
-        if success:
-            print(f"✅ Database update successful!")
-            
-            # Auto update status based on progress
-            if progress == 100:
-                print(f"   Auto-updating status to: Completed")
-                db.update_item_status(item_id, "Completed")
-            elif progress >= 75:
-                print(f"   Auto-updating status to: Working")
-                db.update_item_status(item_id, "Working")
-            elif progress < 25:
-                print(f"   Auto-updating status to: Delayed")
-                db.update_item_status(item_id, "Delayed")
-            
-            print(f"{'='*60}\n")
-            return JSONResponse(
-                status_code=200,
-                content={
-                    "success": True, 
-                    "message": "Progress updated successfully", 
-                    "progress": progress,
-                    "item_id": item_id
-                }
-            )
-        else:
-            print(f"❌ Database update returned False")
-            print(f"{'='*60}\n")
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "success": False, 
-                    "error": "Failed to update progress in database"
-                }
-            )
-            
-    except Exception as e:
-        print(f"❌ Exception during update: {str(e)}")
-        print(f"   Exception type: {type(e).__name__}")
-        traceback.print_exc()
-        print(f"{'='*60}\n")
-        return JSONResponse(
-            status_code=500,
-            content={
-                "success": False, 
-                "error": f"Server error: {str(e)}"
-            }
-        )
-
-# Debug endpoint to check item details
-@app.get("/debug/item/{item_id}")
-def debug_item(item_id: str):
-    """Debug endpoint to check item details"""
-    print(f"\n🔍 DEBUG: Looking for item {item_id}")
-    
-    item = db.get_item_by_id(item_id)
-    if not item:
-        all_items = db.get_items()
-        item_ids = [i.get('item_id') for i in all_items]
-        return {
-            "found": False,
-            "item_id": item_id,
-            "available_items": item_ids,
-            "total_items": len(item_ids)
-        }
-    
-    return {
-        "found": True,
-        "item": item,
-        "can_update": True if item.get('id') else False,
-        "appwrite_doc_id": item.get('id'),
-        "current_progress": item.get('progress', 0)
-    }
-
-@app.get("/test")
-async def test_endpoint():
-    return {"message": "Test endpoint works!", "time": datetime.datetime.now().isoformat()}
-
-@app.get("/test-update/{item_id}/{progress}")
-async def test_direct_update(item_id: str, progress: int):
-    """Direct test of Appwrite update"""
-    try:
-        # Get item first
-        item = db.get_item_by_id(item_id)
-        if not item:
-            return {"error": "Item not found"}
-        
-        print(f"Found item: {item['name']} with doc ID: {item['id']}")
-        
-        # Try direct Appwrite update
-        result = db.databases.update_document(
-            database_id=db.database_id,
-            collection_id=db.items_collection,
-            document_id=item['id'],
-            data={'progress': progress}
-        )
-        
-        print(f"Appwrite response: {result}")
-        return {"success": True, "updated": result}
-        
-    except Exception as e:
-        print(f"Error: {str(e)}")
-        return {"error": str(e), "type": type(e).__name__}
-    
-@app.get("/diagnostic/items")
-def diagnostic_items():
-    """Diagnostic endpoint to check Appwrite data and permissions"""
-    try:
-        # Get all items
-        items = db.get_items()
-        
-        # Test updating the first item with progress tracking
-        test_results = []
-        if items and len(items) > 0:
-            test_item = items[0]
-            test_item_id = test_item['item_id']
-            
-            # Try to update progress to current value (no actual change)
-            current_progress = test_item.get('progress', 0)
-            
-            try:
-                # Test the update
-                update_success = db.update_item_progress(test_item_id, current_progress)
-                test_results.append({
-                    "test": "update_progress",
-                    "item_id": test_item_id,
-                    "success": update_success,
-                    "current_progress": current_progress
-                })
-            except Exception as e:
-                test_results.append({
-                    "test": "update_progress",
-                    "error": str(e),
-                    "error_type": type(e).__name__
-                })
-        
-        return {
-            "total_items": len(items),
-            "items": items[:3] if items else [],  # Return first 3 items for inspection
-            "database_id": db.database_id,
-            "collection_id": db.items_collection,
-            "test_results": test_results,
-            "api_key_configured": bool(APPWRITE_API_KEY),
-            "endpoint": APPWRITE_ENDPOINT
-        }
-        
-    except Exception as e:
-        return {
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "traceback": traceback.format_exc()
-        }
-
-@app.post("/test/update-progress")
-def test_update_progress(item_id: str, progress: int):
-    """Test endpoint to update progress via POST"""
-    try:
-        # Get the item first
-        item = db.get_item_by_id(item_id)
-        if not item:
-            return {"success": False, "error": "Item not found"}
-        
-        # Log everything
-        print(f"Testing update for item: {item_id}")
-        print(f"Item found: {item['name']}")
-        print(f"Document ID: {item['id']}")
-        print(f"Current progress: {item.get('progress', 0)}")
-        print(f"New progress: {progress}")
-        
-        # Try to update
-        success = db.update_item_progress(item_id, progress)
-        
-        if success:
-            # Verify the update by fetching again
-            updated_item = db.get_item_by_id(item_id)
-            return {
-                "success": True,
-                "item_id": item_id,
-                "previous_progress": item.get('progress', 0),
-                "new_progress": progress,
-                "verified_progress": updated_item.get('progress', 0) if updated_item else None
-            }
-        else:
-            return {"success": False, "error": "Update failed"}
-            
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "traceback": traceback.format_exc()
-        }
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-# Force rebuild: 1761089065
