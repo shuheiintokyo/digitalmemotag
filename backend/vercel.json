@@ -1,22 +1,15 @@
 {
+  "version": 2,
   "builds": [
     {
-      "src": "backend/main.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "15mb"
-      }
+      "src": "index.py",
+      "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "backend/main.py"
+      "dest": "index.py"
     }
-  ],
-  "functions": {
-    "backend/main.py": {
-      "runtime": "python3.12"
-    }
-  }
+  ]
 }
