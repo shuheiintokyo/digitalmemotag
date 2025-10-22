@@ -1083,7 +1083,7 @@ async def test_direct_update(item_id: str, progress: int):
         print(f"Error: {str(e)}")
         return {"error": str(e), "type": type(e).__name__}
     
-    @app.get("/diagnostic/items")
+@app.get("/diagnostic/items")
 def diagnostic_items():
     """Diagnostic endpoint to check Appwrite data and permissions"""
     try:
