@@ -162,6 +162,18 @@ class EmailSubscription(BaseModel):
 def send_email_notification(to_email: str, item_name: str, item_id: str, message: str, user_name: str):
     """Send email notification using Resend"""
     
+    print("="*60)
+    print("📧 SEND EMAIL NOTIFICATION")
+    print("="*60)
+    print(f"To: {to_email}")
+    print(f"From: {RESEND_FROM_EMAIL}")
+    print(f"Item: {item_name} ({item_id})")
+    print(f"User: {user_name}")
+    print(f"Message: {message[:50]}...")
+    print(f"Resend API Key exists: {bool(RESEND_API_KEY)}")
+    print(f"Resend API Key length: {len(RESEND_API_KEY) if RESEND_API_KEY else 0}")
+    print("="*60)
+    
     if not RESEND_API_KEY:
         print("⚠️  Warning: Resend API key not configured")
         return False
@@ -252,12 +264,25 @@ def send_email_notification(to_email: str, item_name: str, item_id: str, message
             "html": html_content,
         }
         
-        email = resend.Emails.send(params)
-        print(f"✅ Email sent to {to_email}")
+        print(f"📤 Sending email via Resend...")
+        print(f"   From: {params['from']}")
+        print(f"   To: {params['to']}")
+        print(f"   Subject: {params['subject']}")
+        
+        email_response = resend.Emails.send(params)
+        
+        print(f"✅ Resend Response: {email_response}")
+        print(f"   Email ID: {email_response.get('id', 'N/A')}")
+        print("="*60)
+        
         return True
         
     except Exception as e:
-        print(f"❌ Error sending email to {to_email}: {str(e)}")
+        print(f"❌ Error sending email to {to_email}")
+        print(f"   Error type: {type(e).__name__}")
+        print(f"   Error message: {str(e)}")
+        print(f"   Full error: {repr(e)}")
+        print("="*60)
         return False
 
 # Database class
@@ -411,7 +436,7 @@ class Database:
             return False, str(e)
     
     def add_message(self, item_id, message, user_name, msg_type="general", send_notification=False):
-        """Add new message"""
+        """Add new message and optionally send notifications to multiple recipients"""
         try:
             user_name = user_name.strip() if user_name and user_name.strip() else "匿名"
             message = message.strip() if message else ""
@@ -436,21 +461,65 @@ class Database:
             )
             
             print(f"✅ Message added: {item_id} by {user_name}")
+            print(f"📧 Send notification requested: {send_notification}")
             
             # Send email notification if requested
             if send_notification:
+                print("\n" + "="*60)
+                print("📧 EMAIL NOTIFICATION FLOW")
+                print("="*60)
+                
                 item_name = item['name']
                 user_email_string = item.get('user_email', '')
-                user_emails = [email.strip() for email in user_email_string.split(',') if email.strip()] if user_email_string else []
                 
+                print(f"Item: {item_name}")
+                print(f"User who posted: {user_name}")
+                print(f"Item user_email field: '{user_email_string}'")
+                print(f"Admin emails configured: {ADMIN_EMAILS}")
+                print(f"Number of admin emails: {len(ADMIN_EMAILS)}")
+                
+                # Parse multiple user emails (comma-separated)
+                user_emails = [email.strip() for email in user_email_string.split(',') if email.strip()] if user_email_string else []
+                print(f"Parsed user emails: {user_emails}")
+                print(f"Number of user emails: {len(user_emails)}")
+                
+                # Determine recipient based on who posted
                 if user_name in ['管理者', 'admin', 'Admin', 'Administrator']:
+                    print("\n🔵 ADMIN → USER notification")
+                    # Admin posted - send to ALL user emails
                     if user_emails:
+                        print(f"📧 Sending notification from admin to {len(user_emails)} user(s)")
+                        success_count = 0
                         for user_email in user_emails:
-                            send_email_notification(user_email, item_name, item_id, message, user_name)
+                            print(f"\n   Sending to: {user_email}")
+                            if send_email_notification(user_email, item_name, item_id, message, user_name):
+                                success_count += 1
+                                print(f"   ✅ Sent successfully to {user_email}")
+                            else:
+                                print(f"   ❌ Failed to send to {user_email}")
+                        print(f"\n✅ Total sent: {success_count}/{len(user_emails)} user(s)")
+                    else:
+                        print("⚠️ No user emails configured for this item")
+                        print("   Item user_email field is empty or invalid")
                 else:
+                    print("\n🔵 USER → ADMIN notification")
+                    # User posted - send to ALL admins
                     if ADMIN_EMAILS:
+                        print(f"📧 Sending notification from user to {len(ADMIN_EMAILS)} admin(s)")
+                        success_count = 0
                         for admin_email in ADMIN_EMAILS:
-                            send_email_notification(admin_email, item_name, item_id, message, user_name)
+                            print(f"\n   Sending to admin: {admin_email}")
+                            if send_email_notification(admin_email, item_name, item_id, message, user_name):
+                                success_count += 1
+                                print(f"   ✅ Sent successfully to {admin_email}")
+                            else:
+                                print(f"   ❌ Failed to send to {admin_email}")
+                        print(f"\n✅ Total sent: {success_count}/{len(ADMIN_EMAILS)} admin(s)")
+                    else:
+                        print("⚠️ No admin emails configured")
+                        print("   ADMIN_EMAIL environment variable is not set")
+                
+                print("="*60 + "\n")
             
             return True, "Message posted successfully"
             

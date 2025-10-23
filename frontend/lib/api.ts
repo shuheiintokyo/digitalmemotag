@@ -1,8 +1,6 @@
 import axios from 'axios';
 
-// Use the custom domain instead of Vercel subdomain
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.memotag.digital';
-console.log('🌐 API Base URL:', API_BASE_URL);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -16,35 +14,9 @@ api.interceptors.request.use((config) => {
   const token = localStorage.getItem('authToken');
   if (token && token.trim() !== '') {
     config.headers.Authorization = `Bearer ${token}`;
-    console.log('🔐 Added auth token to request');
-  } else {
-    console.log('👤 No auth token - public request');
   }
   return config;
 });
-
-// Add response interceptor for debugging
-api.interceptors.response.use(
-  (response) => {
-    console.log('✅ Response:', {
-      url: response.config.url,
-      method: response.config.method?.toUpperCase(),
-      status: response.status,
-      data: response.data
-    });
-    return response;
-  },
-  (error) => {
-    console.error('❌ Error Response:', {
-      url: error.config?.url,
-      method: error.config?.method?.toUpperCase(),
-      status: error.response?.status,
-      data: error.response?.data,
-      message: error.message
-    });
-    return Promise.reject(error);
-  }
-);
 
 // Updated interfaces
 export interface Item {
@@ -56,7 +28,7 @@ export interface Item {
   user_email?: string;
   total_pieces?: number;
   target_date?: string;
-  progress?: number; // 0-100
+  progress?: number;
   created_at?: string;
 }
 
@@ -117,30 +89,18 @@ export const updateItemStatus = async (itemId: string, status: string) => {
 };
 
 export const updateItemProgress = async (itemId: string, progress: number) => {
-  console.group('📊 updateItemProgress');
-  console.log('Item ID:', itemId);
-  console.log('Progress:', progress);
-  console.log('Auth token exists:', !!localStorage.getItem('authToken'));
-  
   try {
-    // Use PATCH endpoint for authenticated users (admin)
-    // Use public endpoint for non-authenticated users
     const authToken = localStorage.getItem('authToken');
     
     let response;
     
     if (authToken) {
       // Admin: Use PATCH endpoint
-      console.log('🔐 Using admin PATCH endpoint');
       response = await api.patch(`/items/${itemId}/progress?progress=${progress}`);
     } else {
       // Public user: Use public GET endpoint
-      console.log('👤 Using public GET endpoint');
       response = await api.get(`/public/progress/${itemId}/${progress}`);
     }
-    
-    console.log('✅ Success:', response.data);
-    console.groupEnd();
     
     if (response.data.success === false) {
       throw new Error(response.data.error || 'Failed to update progress');
@@ -148,13 +108,7 @@ export const updateItemProgress = async (itemId: string, progress: number) => {
     
     return response.data;
   } catch (error: any) {
-    console.error('❌ Progress update failed');
-    console.error('Error details:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status
-    });
-    console.groupEnd();
+    console.error('Progress update failed:', error);
     throw error;
   }
 };

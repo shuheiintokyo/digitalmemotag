@@ -25,24 +25,8 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
   const sliderRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 🔍 DEBUG: Log when component mounts and props change
-  useEffect(() => {
-    console.group('🎯 ProgressSlider Component');
-    console.log('Item ID:', itemId);
-    console.log('Total Pieces:', totalPieces);
-    console.log('Current Progress (from props):', currentProgress);
-    console.log('Target Date:', targetDate);
-    console.groupEnd();
-  }, [itemId, totalPieces, currentProgress, targetDate]);
-
   // Update local state when prop changes
   useEffect(() => {
-    console.log('📥 Progress prop changed:', {
-      oldProgress: progress,
-      newProgress: currentProgress,
-      willUpdate: progress !== currentProgress
-    });
-    
     setProgress(currentProgress);
     setCompletedPieces(Math.round((currentProgress / 100) * totalPieces));
     setHasUnsavedChanges(false);
@@ -56,14 +40,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
     }
 
     if (!isDragging && progress !== currentProgress && hasUnsavedChanges) {
-      console.log('⏰ Auto-save scheduled in 3 seconds...', {
-        currentProgress: progress,
-        savedProgress: currentProgress,
-        difference: progress - currentProgress
-      });
-      
       saveTimeoutRef.current = setTimeout(() => {
-        console.log('🤖 Auto-save triggered!');
         saveProgress();
       }, 3000);
     }
@@ -77,52 +54,22 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
   }, [progress, isDragging, currentProgress, hasUnsavedChanges]);
 
   const saveProgress = async () => {
-    console.group('💾 SAVE PROGRESS');
-    console.log('Item ID:', itemId);
-    console.log('Progress to save:', progress);
-    console.log('Previous progress:', currentProgress);
-    
     try {
       setIsSaving(true);
       setSaveSuccess(false);
       setSaveError(null);
       
-      const isAdmin = typeof window !== 'undefined' ? !!localStorage.getItem('authToken') : false;
-      console.log('👤 User type:', isAdmin ? 'Admin' : 'Regular User');
-      console.log('🔐 Auth token exists:', !!localStorage.getItem('authToken'));
-      
       if (onProgressUpdate) {
-        console.log('📤 Calling onProgressUpdate callback...');
         await onProgressUpdate(progress);
-        console.log('✅ onProgressUpdate completed successfully');
-      } else {
-        console.warn('⚠️ No onProgressUpdate callback provided!');
       }
       
       setHasUnsavedChanges(false);
       setSaveSuccess(true);
-      console.log('✅ Progress saved successfully!');
       
       setTimeout(() => {
         setSaveSuccess(false);
       }, 2000);
     } catch (error: any) {
-      console.error('❌ Failed to save progress');
-      console.error('Error object:', error);
-      
-      if (error.response) {
-        console.error('Server response:', {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          data: error.response.data,
-          headers: error.response.headers
-        });
-      } else if (error.request) {
-        console.error('No response received:', error.request);
-      } else {
-        console.error('Request setup error:', error.message);
-      }
-      
       let errorMessage = '進捗の保存に失敗しました。';
       
       if (error.response) {
@@ -147,12 +94,10 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
       }, 5000);
     } finally {
       setIsSaving(false);
-      console.groupEnd();
     }
   };
 
   const handleSliderStart = (e: React.MouseEvent | React.TouchEvent) => {
-    console.log('🖱️ Slider interaction started');
     setIsDragging(true);
     handleSliderMove(e);
   };
@@ -173,31 +118,20 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
 
     const x = clientX - rect.left;
     const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
-    const roundedPercentage = Math.round(percentage);
     
-    if (roundedPercentage !== progress) {
-      console.log('🎚️ Slider moved:', {
-        from: progress,
-        to: roundedPercentage,
-        pieces: Math.round((roundedPercentage / 100) * totalPieces)
-      });
-    }
-    
-    setProgress(roundedPercentage);
-    setCompletedPieces(Math.round((roundedPercentage / 100) * totalPieces));
+    setProgress(Math.round(percentage));
+    setCompletedPieces(Math.round((percentage / 100) * totalPieces));
     setHasUnsavedChanges(true);
     setSaveError(null);
   };
 
   const handleSliderEnd = () => {
-    console.log('🖱️ Slider interaction ended at', progress, '%');
     setIsDragging(false);
   };
 
   const handlePiecesInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value;
     if (inputValue === '') {
-      console.log('📝 Pieces input cleared');
       setCompletedPieces(0);
       setProgress(0);
       setHasUnsavedChanges(true);
@@ -207,14 +141,8 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
     const value = parseInt(inputValue);
     if (isNaN(value)) return;
     const clampedValue = Math.max(0, Math.min(totalPieces, value));
-    const percentage = Math.round((clampedValue / totalPieces) * 100);
-    
-    console.log('📝 Pieces input changed:', {
-      pieces: clampedValue,
-      percentage: percentage
-    });
-    
     setCompletedPieces(clampedValue);
+    const percentage = Math.round((clampedValue / totalPieces) * 100);
     setProgress(percentage);
     setHasUnsavedChanges(true);
     setSaveError(null);
@@ -223,7 +151,6 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
   const handlePercentageInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value;
     if (inputValue === '') {
-      console.log('📝 Percentage input cleared');
       setProgress(0);
       setCompletedPieces(0);
       setHasUnsavedChanges(true);
@@ -233,12 +160,6 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
     const value = parseInt(inputValue);
     if (isNaN(value)) return;
     const clampedValue = Math.max(0, Math.min(100, value));
-    
-    console.log('📝 Percentage input changed:', {
-      percentage: clampedValue,
-      pieces: Math.round((clampedValue / 100) * totalPieces)
-    });
-    
     setProgress(clampedValue);
     setCompletedPieces(Math.round((clampedValue / 100) * totalPieces));
     setHasUnsavedChanges(true);
@@ -455,22 +376,6 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
           ⏰ 3秒後に自動保存されます（または「保存」ボタンをクリック）
         </div>
       )}
-
-      {/* Always show debug info for troubleshooting */}
-      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-xs">
-        <div className="font-bold text-blue-800 mb-2">🔍 Debug Info:</div>
-        <div className="space-y-1 text-blue-700">
-          <div>Item ID: <span className="font-mono">{itemId}</span></div>
-          <div>Progress (local): <span className="font-mono">{progress}%</span></div>
-          <div>Progress (from props): <span className="font-mono">{currentProgress}%</span></div>
-          <div>Total Pieces: <span className="font-mono">{totalPieces}</span></div>
-          <div>Completed Pieces: <span className="font-mono">{completedPieces}</span></div>
-          <div>Has Auth Token: <span className="font-mono">{typeof window !== 'undefined' && localStorage.getItem('authToken') ? 'Yes (Admin)' : 'No (User)'}</span></div>
-          <div>Has Unsaved Changes: <span className="font-mono">{hasUnsavedChanges ? 'Yes' : 'No'}</span></div>
-          <div>Is Dragging: <span className="font-mono">{isDragging ? 'Yes' : 'No'}</span></div>
-          <div>onProgressUpdate callback: <span className="font-mono">{onProgressUpdate ? 'Provided ✓' : 'Missing ✗'}</span></div>
-        </div>
-      </div>
     </div>
   );
 };
