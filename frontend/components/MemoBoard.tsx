@@ -95,18 +95,46 @@ const MemoBoard: React.FC<MemoBoardProps> = ({ itemId, isDirectAccess = false })
     }
   };
 
-  const handleProgressUpdate = async (newProgress: number) => {
-    try {
-      await updateItemProgress(itemId, newProgress);
-      if (item) {
-        setItem({ ...item, progress: newProgress });
-      }
-      console.log('Progress updated successfully:', newProgress);
-    } catch (err) {
-      console.error('Failed to update progress:', err);
-      setError('進捗の更新に失敗しました');
+  // Add this to your MemoBoard.tsx - just the handleProgressUpdate function
+
+const handleProgressUpdate = async (newProgress: number) => {
+  console.group('🔄 MemoBoard: handleProgressUpdate');
+  console.log('Item ID:', itemId);
+  console.log('New Progress:', newProgress);
+  console.log('Current Item:', item);
+  console.log('API Base URL:', process.env.NEXT_PUBLIC_API_URL || 'https://api.memotag.digital');
+  
+  try {
+    console.log('📤 Calling updateItemProgress API...');
+    const result = await updateItemProgress(itemId, newProgress);
+    console.log('✅ API Response:', result);
+    
+    if (item) {
+      const updatedItem = { ...item, progress: newProgress };
+      console.log('🔄 Updating local state:', updatedItem);
+      setItem(updatedItem);
     }
-  };
+    
+    console.log('✅ Progress updated successfully in MemoBoard');
+  } catch (err: any) {
+    console.error('❌ Failed to update progress in MemoBoard');
+    console.error('Error object:', err);
+    
+    if (err.response) {
+      console.error('Response data:', err.response.data);
+      console.error('Response status:', err.response.status);
+      console.error('Response headers:', err.response.headers);
+    } else if (err.request) {
+      console.error('No response received:', err.request);
+    } else {
+      console.error('Request setup error:', err.message);
+    }
+    
+    setError('進捗の更新に失敗しました');
+  } finally {
+    console.groupEnd();
+  }
+};
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMessage(e.target.value);
