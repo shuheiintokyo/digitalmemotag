@@ -25,8 +25,24 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
   const sliderRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // 🔍 DEBUG: Log when component mounts and props change
+  useEffect(() => {
+    console.group('🎯 ProgressSlider Component');
+    console.log('Item ID:', itemId);
+    console.log('Total Pieces:', totalPieces);
+    console.log('Current Progress (from props):', currentProgress);
+    console.log('Target Date:', targetDate);
+    console.groupEnd();
+  }, [itemId, totalPieces, currentProgress, targetDate]);
+
   // Update local state when prop changes
   useEffect(() => {
+    console.log('📥 Progress prop changed:', {
+      oldProgress: progress,
+      newProgress: currentProgress,
+      willUpdate: progress !== currentProgress
+    });
+    
     setProgress(currentProgress);
     setCompletedPieces(Math.round((currentProgress / 100) * totalPieces));
     setHasUnsavedChanges(false);
@@ -40,7 +56,12 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
     }
 
     if (!isDragging && progress !== currentProgress && hasUnsavedChanges) {
-      console.log('⏰ Auto-save scheduled in 3 seconds...');
+      console.log('⏰ Auto-save scheduled in 3 seconds...', {
+        currentProgress: progress,
+        savedProgress: currentProgress,
+        difference: progress - currentProgress
+      });
+      
       saveTimeoutRef.current = setTimeout(() => {
         console.log('🤖 Auto-save triggered!');
         saveProgress();
@@ -56,40 +77,55 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
   }, [progress, isDragging, currentProgress, hasUnsavedChanges]);
 
   const saveProgress = async () => {
+    console.group('💾 SAVE PROGRESS');
+    console.log('Item ID:', itemId);
+    console.log('Progress to save:', progress);
+    console.log('Previous progress:', currentProgress);
+    
     try {
       setIsSaving(true);
       setSaveSuccess(false);
       setSaveError(null);
       
-      console.log(`💾 Saving progress for item ${itemId}: ${progress}%`);
-      
-      // Check if we're admin or regular user
       const isAdmin = typeof window !== 'undefined' ? !!localStorage.getItem('authToken') : false;
-      console.log(`👤 User type: ${isAdmin ? 'Admin' : 'Regular User'}`);
+      console.log('👤 User type:', isAdmin ? 'Admin' : 'Regular User');
+      console.log('🔐 Auth token exists:', !!localStorage.getItem('authToken'));
       
       if (onProgressUpdate) {
+        console.log('📤 Calling onProgressUpdate callback...');
         await onProgressUpdate(progress);
+        console.log('✅ onProgressUpdate completed successfully');
+      } else {
+        console.warn('⚠️ No onProgressUpdate callback provided!');
       }
       
-      console.log('✅ Progress saved successfully!');
       setHasUnsavedChanges(false);
       setSaveSuccess(true);
+      console.log('✅ Progress saved successfully!');
       
-      // Hide success message after 2 seconds
       setTimeout(() => {
         setSaveSuccess(false);
       }, 2000);
     } catch (error: any) {
-      console.error('❌ Failed to save progress:', error);
+      console.error('❌ Failed to save progress');
+      console.error('Error object:', error);
       
-      // Better error message handling
+      if (error.response) {
+        console.error('Server response:', {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data,
+          headers: error.response.headers
+        });
+      } else if (error.request) {
+        console.error('No response received:', error.request);
+      } else {
+        console.error('Request setup error:', error.message);
+      }
+      
       let errorMessage = '進捗の保存に失敗しました。';
       
       if (error.response) {
-        // The request was made and the server responded with a status code
-        console.error('Server error response:', error.response.data);
-        console.error('Status code:', error.response.status);
-        
         if (error.response.status === 401) {
           errorMessage = '認証エラー: ページを再読み込みしてください。';
         } else if (error.response.status === 400) {
@@ -100,27 +136,23 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
           errorMessage = 'サーバーエラーが発生しました。しばらく待ってから再試行してください。';
         }
       } else if (error.request) {
-        // The request was made but no response was received
-        console.error('No response received:', error.request);
         errorMessage = 'サーバーに接続できません。ネットワーク接続を確認してください。';
-      } else {
-        // Something happened in setting up the request
-        console.error('Request setup error:', error.message);
       }
       
       setSaveError(errorMessage);
-      setHasUnsavedChanges(true); // Keep the unsaved changes flag
+      setHasUnsavedChanges(true);
       
-      // Auto-hide error after 5 seconds
       setTimeout(() => {
         setSaveError(null);
       }, 5000);
     } finally {
       setIsSaving(false);
+      console.groupEnd();
     }
   };
 
   const handleSliderStart = (e: React.MouseEvent | React.TouchEvent) => {
+    console.log('🖱️ Slider interaction started');
     setIsDragging(true);
     handleSliderMove(e);
   };
@@ -141,20 +173,31 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
 
     const x = clientX - rect.left;
     const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
+    const roundedPercentage = Math.round(percentage);
     
-    setProgress(Math.round(percentage));
-    setCompletedPieces(Math.round((percentage / 100) * totalPieces));
+    if (roundedPercentage !== progress) {
+      console.log('🎚️ Slider moved:', {
+        from: progress,
+        to: roundedPercentage,
+        pieces: Math.round((roundedPercentage / 100) * totalPieces)
+      });
+    }
+    
+    setProgress(roundedPercentage);
+    setCompletedPieces(Math.round((roundedPercentage / 100) * totalPieces));
     setHasUnsavedChanges(true);
-    setSaveError(null); // Clear any previous errors when user interacts
+    setSaveError(null);
   };
 
   const handleSliderEnd = () => {
+    console.log('🖱️ Slider interaction ended at', progress, '%');
     setIsDragging(false);
   };
 
   const handlePiecesInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value;
     if (inputValue === '') {
+      console.log('📝 Pieces input cleared');
       setCompletedPieces(0);
       setProgress(0);
       setHasUnsavedChanges(true);
@@ -164,8 +207,14 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
     const value = parseInt(inputValue);
     if (isNaN(value)) return;
     const clampedValue = Math.max(0, Math.min(totalPieces, value));
-    setCompletedPieces(clampedValue);
     const percentage = Math.round((clampedValue / totalPieces) * 100);
+    
+    console.log('📝 Pieces input changed:', {
+      pieces: clampedValue,
+      percentage: percentage
+    });
+    
+    setCompletedPieces(clampedValue);
     setProgress(percentage);
     setHasUnsavedChanges(true);
     setSaveError(null);
@@ -174,6 +223,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
   const handlePercentageInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value;
     if (inputValue === '') {
+      console.log('📝 Percentage input cleared');
       setProgress(0);
       setCompletedPieces(0);
       setHasUnsavedChanges(true);
@@ -183,6 +233,12 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
     const value = parseInt(inputValue);
     if (isNaN(value)) return;
     const clampedValue = Math.max(0, Math.min(100, value));
+    
+    console.log('📝 Percentage input changed:', {
+      percentage: clampedValue,
+      pieces: Math.round((clampedValue / 100) * totalPieces)
+    });
+    
     setProgress(clampedValue);
     setCompletedPieces(Math.round((clampedValue / 100) * totalPieces));
     setHasUnsavedChanges(true);
@@ -241,7 +297,6 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
       <div className="flex justify-between items-center mb-2">
         <h3 className="text-lg font-semibold">📊 進捗状況</h3>
         <div className="flex items-center gap-2">
-          {/* Save Status Indicator */}
           {isSaving && (
             <span className="text-sm text-blue-600 animate-pulse flex items-center gap-1">
               <span className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></span>
@@ -259,7 +314,6 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
             </span>
           )}
           
-          {/* Manual Save Button */}
           <button
             onClick={saveProgress}
             disabled={!hasUnsavedChanges || isSaving}
@@ -274,7 +328,6 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
         </div>
       </div>
 
-      {/* Error Display */}
       {saveError && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
           <div className="flex items-start gap-2">
@@ -287,14 +340,12 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
         </div>
       )}
 
-      {/* Target Date Display */}
       {formattedTargetDate && (
         <div className="mb-4 text-sm text-gray-600">
           🎯 目標完了日: <span className="font-medium">{formattedTargetDate}</span>
         </div>
       )}
 
-      {/* Progress Bar */}
       <div className="mb-6">
         <div className="flex justify-between text-sm text-gray-600 mb-2">
           <span>0%</span>
@@ -308,7 +359,6 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
           onMouseDown={handleSliderStart}
           onTouchStart={handleSliderStart}
         >
-          {/* Progress Fill */}
           <div 
             className={`absolute top-0 left-0 h-full rounded-full transition-all duration-150 ${
               progress === 100 ? 'bg-gradient-to-r from-green-400 to-green-600' :
@@ -320,7 +370,6 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
             style={{ width: `${progress}%` }}
           />
           
-          {/* Draggable Handle */}
           <div
             className={`absolute top-1/2 transform -translate-y-1/2 w-8 h-8 bg-white border-4 rounded-full shadow-lg transition-transform ${
               isDragging ? 'scale-125' : 'hover:scale-110'
@@ -346,7 +395,6 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
         </div>
       </div>
 
-      {/* Input Controls */}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -383,7 +431,6 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
         </div>
       </div>
 
-      {/* Progress Status */}
       <div className="mt-4 p-3 bg-gray-50 rounded-lg">
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-600">ステータス:</span>
@@ -403,21 +450,27 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
         </div>
       </div>
 
-      {/* Auto-save indicator */}
       {hasUnsavedChanges && !isDragging && !isSaving && !saveError && (
         <div className="mt-3 text-xs text-gray-500 text-center">
           ⏰ 3秒後に自動保存されます（または「保存」ボタンをクリック）
         </div>
       )}
 
-      {/* Debug Info (only in development) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mt-4 p-2 bg-gray-100 rounded text-xs text-gray-600">
-          <div>Item ID: {itemId}</div>
-          <div>Progress: {progress}%</div>
-          <div>Has Auth Token: {typeof window !== 'undefined' && localStorage.getItem('authToken') ? 'Yes (Admin)' : 'No (User)'}</div>
+      {/* Always show debug info for troubleshooting */}
+      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-xs">
+        <div className="font-bold text-blue-800 mb-2">🔍 Debug Info:</div>
+        <div className="space-y-1 text-blue-700">
+          <div>Item ID: <span className="font-mono">{itemId}</span></div>
+          <div>Progress (local): <span className="font-mono">{progress}%</span></div>
+          <div>Progress (from props): <span className="font-mono">{currentProgress}%</span></div>
+          <div>Total Pieces: <span className="font-mono">{totalPieces}</span></div>
+          <div>Completed Pieces: <span className="font-mono">{completedPieces}</span></div>
+          <div>Has Auth Token: <span className="font-mono">{typeof window !== 'undefined' && localStorage.getItem('authToken') ? 'Yes (Admin)' : 'No (User)'}</span></div>
+          <div>Has Unsaved Changes: <span className="font-mono">{hasUnsavedChanges ? 'Yes' : 'No'}</span></div>
+          <div>Is Dragging: <span className="font-mono">{isDragging ? 'Yes' : 'No'}</span></div>
+          <div>onProgressUpdate callback: <span className="font-mono">{onProgressUpdate ? 'Provided ✓' : 'Missing ✗'}</span></div>
         </div>
-      )}
+      </div>
     </div>
   );
 };
